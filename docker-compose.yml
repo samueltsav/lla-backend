@@ -1,0 +1,138 @@
+services:
+  redis:
+    image: redis:7.4.4-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend_network
+
+  user-service:
+    container_name: user-service
+    build:
+      context: ./user_service
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://user-service:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 25
+    environment:
+      - PYTHONPATH=/app
+      - DJANGO_SETTINGS_MODULE=user_management.settings
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CONTENT_SERVICE_URL=http://content-service:8000
+    depends_on:
+      - redis
+    volumes:
+      - ./shared:/app/shared:ro
+    networks:
+      - backend_network
+
+  content-service:
+    container_name: content-service
+    build:
+      context: ./content_service
+    ports:
+      - "8002:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://content-service:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 25
+    environment:
+      - PYTHONPATH=/app
+      - DJANGO_SETTINGS_MODULE=content_management.settings
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - USER_SERVICE_URL=http://user-service:8000
+    depends_on:
+      - redis
+    volumes:
+      - ./shared:/app/shared:ro
+    networks:
+      - backend_network
+
+  test-service:
+    container_name: test-service
+    build:
+      context: ./test_service
+    depends_on:
+      user-service:
+        condition: service_healthy
+      content-service:
+        condition: service_healthy
+    environment:
+      - USER_SERVICE_URL=http://user-service:8000
+      - CONTENT_SERVICE_URL=http://content-service:8000
+    networks:
+      - backend_network
+
+  celery-worker:
+    container_name: celery-worker
+    build:
+      context: ./celery_worker
+    command: worker
+    environment:
+      - PYTHONPATH=/app
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    depends_on:
+      - redis
+      - user-service
+      - content-service
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./user_service:/app/user_service:ro
+      - ./content_service:/app/content_service:ro
+    networks:
+      - backend_network
+
+  celery-beat:
+    container_name: beat
+    build:
+      context: ./celery_worker
+    command: beat
+    environment:
+      - PYTHONPATH=/app
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    depends_on:
+      - redis
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./user_service:/app/user_service:ro
+      - ./content_service:/app/content_service:ro
+    networks:
+      - backend_network
+
+  flower:
+    container_name: flower
+    build:
+      context: ./celery_worker
+    command: flower
+    ports:
+      - "5555:5555"
+    environment:
+      - PYTHONPATH=/app
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    depends_on:
+      - redis
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./user_service:/app/user_service:ro
+      - ./content_service:/app/content_service:ro
+    networks:
+      - backend_network
+
+volumes:
+  redis_data:
+
+networks:
+  backend_network:
+    driver: bridge
