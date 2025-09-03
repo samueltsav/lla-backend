@@ -1,6 +1,0 @@
-[submodule "content_service"]
-	path = content_service
-	url = https://github.com/tsavsamuel/content_service.git
-[submodule "user_service"]
-	path = user_service
-	url = https://github.com/tsavsamuel/user_service.git

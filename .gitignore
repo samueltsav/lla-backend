@@ -1,4 +1,4 @@
 .venv/
+.env
 .vscode
-test_service_communication.py
-
+test_service/
