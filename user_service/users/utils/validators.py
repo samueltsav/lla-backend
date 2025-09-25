@@ -7,7 +7,6 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 ALLOWED_FORMATS = {"JPEG", "PNG", "GIF"}
 
 
-# Custom validator class for reusability
 class ImageValidator:
     def __init__(
         self,
@@ -23,7 +22,7 @@ class ImageValidator:
         self.max_width = max_width
         self.max_height = max_height
 
-    def __call__(self, file):  # Make the class callable as a validator"""
+    def __call__(self, file):
         if not file:
             raise ValidationError("No file provided")
 

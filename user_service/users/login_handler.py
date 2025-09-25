@@ -15,13 +15,13 @@ class LoginNotificationHandler:
         self.request = request
         self.suspicious_indicators = [
             "unknown_location",
-            "new_device", 
+            "new_device",
             "multiple_failed_attempts",
             "unusual_time",
             "vpn_detected",
-            "tor_detected"
+            "tor_detected",
         ]
-    
+
     def handle_login(self) -> Optional[str]:
         """Main entry point for handling login notifications."""
         user_data = {

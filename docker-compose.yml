@@ -1,4 +1,19 @@
 services:
+  rabbitmq:
+    image: rabbitmq:4.1.4-management
+    container_name: rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=tecvinson
+      - RABBITMQ_DEFAULT_PASS=linguafrika
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - backend_network
+
   redis:
     image: redis:7.4.4-alpine
     container_name: redis
@@ -6,6 +21,22 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - backend_network
+
+  postgres:
+    image: postgres:17.4
+    container_name: postgres
+    environment:
+      - POSTGRES_DB=UserManagement
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=samueltsav
+    ports:
+      - "5433:5432"
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - backend_network
 
@@ -23,10 +54,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - DJANGO_SETTINGS_MODULE=user_management.settings
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://tecvinson:linguafrika@rabbitmq:5672//
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - CONTENT_SERVICE_URL=http://content-service:8000
     depends_on:
+      - postgres
+      - rabbitmq
       - redis
     volumes:
       - ./shared:/app/shared:ro
@@ -47,28 +80,14 @@ services:
     environment:
       - PYTHONPATH=/app
       - DJANGO_SETTINGS_MODULE=content_management.settings
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://tecvinson:linguafrika@rabbitmq:5672//
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - USER_SERVICE_URL=http://user-service:8000
     depends_on:
+      - rabbitmq
       - redis
     volumes:
       - ./shared:/app/shared:ro
-    networks:
-      - backend_network
-
-  test-service:
-    container_name: test-service
-    build:
-      context: ./test_service
-    depends_on:
-      user-service:
-        condition: service_healthy
-      content-service:
-        condition: service_healthy
-    environment:
-      - USER_SERVICE_URL=http://user-service:8000
-      - CONTENT_SERVICE_URL=http://content-service:8000
     networks:
       - backend_network
 
@@ -79,12 +98,13 @@ services:
     command: worker
     environment:
       - PYTHONPATH=/app
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://tecvinson:linguafrika@rabbitmq:5672//
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
     depends_on:
-      - redis
-      - user-service
-      - content-service
+      user-service:
+        condition: service_healthy
+      content-service:
+        condition: service_healthy
     volumes:
       - ./shared:/app/shared:ro
       - ./user_service:/app/user_service:ro
@@ -99,10 +119,13 @@ services:
     command: beat
     environment:
       - PYTHONPATH=/app
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://tecvinson:linguafrika@rabbitmq:5672//
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
     depends_on:
-      - redis
+      user-service:
+        condition: service_healthy
+      content-service:
+        condition: service_healthy
     volumes:
       - ./shared:/app/shared:ro
       - ./user_service:/app/user_service:ro
@@ -119,10 +142,13 @@ services:
       - "5555:5555"
     environment:
       - PYTHONPATH=/app
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://tecvinson:linguafrika@rabbitmq:5672//
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
     depends_on:
-      - redis
+      user-service:
+        condition: service_healthy
+      content-service:
+        condition: service_healthy
     volumes:
       - ./shared:/app/shared:ro
       - ./user_service:/app/user_service:ro
@@ -130,8 +156,25 @@ services:
     networks:
       - backend_network
 
+#  test-service:
+#    container_name: test-service
+#    build:
+#      context: ./test_service
+#    depends_on:
+#      user-service:
+#        condition: service_healthy
+#      content-service:
+#        condition: service_healthy
+#    environment:
+#      - USER_SERVICE_URL=http://user-service:8000
+#      - CONTENT_SERVICE_URL=http://content-service:8000
+#    networks:
+#      - backend_network
+
 volumes:
+  rabbitmq_data:
   redis_data:
+  postgres_data:
 
 networks:
   backend_network:

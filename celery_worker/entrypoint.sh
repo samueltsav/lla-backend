@@ -1,13 +1,18 @@
 #!/bin/ash
 
-echo "Starting Celery worker..."
-
 # Wait for redis to be ready
 echo "Waiting for Redis..."
 while ! nc -z redis 6379; do
     sleep 1
 done
 echo "Redis is ready!"
+
+# Wait for RabbitMQ to be ready
+echo "Waiting for RabbitMQ..."
+while ! nc -z rabbitmq 5672; do
+    sleep 1
+done
+echo "RabbitMQ is ready!"
 
 # Wait for services to be ready
 echo "Waiting for services..."

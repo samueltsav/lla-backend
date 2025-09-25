@@ -28,87 +28,109 @@ EMAIL_CONFIG = {
     "default_from_email": os.getenv("DEFAULT_FROM_EMAIL"),
 }
 
-@app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={"max_retries": 3, "countdown": 60})
-def send_login_notification_email(self, user_data: Dict[str, Any], login_info: Dict[str, Any]) -> Dict[str, Any]:
+
+@app.task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_kwargs={"max_retries": 3, "countdown": 60},
+)
+def send_login_notification_email(
+    self, user_data: Dict[str, Any], login_info: Dict[str, Any]
+) -> Dict[str, Any]:
     try:
-        logger.info(f"Starting email notification task for user: {user_data.get("email")}")
-        
+        logger.info(
+            f"Starting email notification task for user: {user_data.get('email')}"
+        )
+
         # Validate required data
         if not user_data.get("email"):
             raise ValueError("User email is required")
-        
+
         # Prepare email content
         email_content = prepare_login_email_content(user_data, login_info)
-        
+
         # Send email
-        result = send_email(
+        send_email(
             to_email=user_data["email"],
             subject=email_content["subject"],
             html_body=email_content["html_body"],
-            text_body=email_content["text_body"]
+            text_body=email_content["text_body"],
         )
-        
-        logger.info(f"Login notification email sent successfully to {user_data['email']}")
-        
+
+        logger.info(
+            f"Login notification email sent successfully to {user_data['email']}"
+        )
+
         return {
             "status": "success",
             "message": "Login notification email sent successfully",
             "recipient": user_data["email"],
             "timestamp": datetime.now,
-            "task_id": self.request.id
+            "task_id": self.request.id,
         }
-        
+
     except Exception as exc:
         logger.error(f"Failed to send login notification email: {str(exc)}")
         # Retry the task
         raise self.retry(exc=exc, countdown=60, max_retries=3)
 
 
-@app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={"max_retries": 2, "countdown": 30})
-def send_suspicious_login_alert(self, user_data: Dict[str, Any], login_info: Dict[str, Any]) -> Dict[str, Any]:
+@app.task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_kwargs={"max_retries": 2, "countdown": 30},
+)
+def send_suspicious_login_alert(
+    self, user_data: Dict[str, Any], login_info: Dict[str, Any]
+) -> Dict[str, Any]:
     try:
-        logger.warning(f"Sending suspicious login alert for user: {user_data.get("email")}")
-        
+        logger.warning(
+            f"Sending suspicious login alert for user: {user_data.get('email')}"
+        )
+
         # Prepare alert email content
         email_content = prepare_suspicious_login_email_content(user_data, login_info)
-        
+
         # Send high priority email
-        result = send_email(
+        send_email(
             to_email=user_data["email"],
             subject=email_content["subject"],
             html_body=email_content["html_body"],
             text_body=email_content["text_body"],
-            priority="high"
+            priority="high",
         )
-        
+
         logger.info(f"Suspicious login alert sent successfully to {user_data['email']}")
-        
+
         return {
             "status": "success",
             "message": "Suspicious login alert sent successfully",
             "recipient": user_data["email"],
             "timestamp": datetime.now,
             "task_id": self.request.id,
-            "alert_type": "suspicious_login"
+            "alert_type": "suspicious_login",
         }
-        
+
     except Exception as exc:
         logger.error(f"Failed to send suspicious login alert: {str(exc)}")
         raise self.retry(exc=exc, countdown=30, max_retries=2)
 
 
-def prepare_login_email_content(user_data: Dict[str, Any], login_info: Dict[str, Any]) -> Dict[str, str]:
+def prepare_login_email_content(
+    user_data: Dict[str, Any], login_info: Dict[str, Any]
+) -> Dict[str, str]:
     user_name = user_data.get("name", user_data.get("email", "User"))
-    login_time = login_info.get("timestamp", datetime.now.strftime("%Y-%m-%d %H:%M:%S UTC"))
+    login_time = login_info.get(
+        "timestamp", datetime.now.strftime("%Y-%m-%d %H:%M:%S UTC")
+    )
     ip_address = login_info.get("ip_address", "Unknown")
     location = login_info.get("location", "Unknown")
     device_info = login_info.get("device_info", "Unknown")
     browser = login_info.get("browser", "Unknown")
-    
-    subject = f"Login Notification - {user_name}"
-    
-    # HTML email body
-    html_body = f"""
+
+    f"Login Notification - {user_name}"
+
+    f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -156,22 +178,28 @@ def prepare_login_email_content(user_data: Dict[str, Any], login_info: Dict[str,
     </body>
     </html>
     """
-    
-def prepare_suspicious_login_email_content(user_data: Dict[str, Any], login_info: Dict[str, Any]) -> Dict[str, str]:
-    
+
+
+def prepare_suspicious_login_email_content(
+    user_data: Dict[str, Any], login_info: Dict[str, Any]
+) -> Dict[str, str]:
     user_name = user_data.get("name", user_data.get("email", "User"))
-    login_time = login_info.get("timestamp", datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"))
+    login_time = login_info.get(
+        "timestamp", datetime.now.strftime("%Y-%m-%d %H:%M:%S UTC")
+    )
     ip_address = login_info.get("ip_address", "Unknown")
     location = login_info.get("location", "Unknown")
     suspicious_reasons = login_info.get("suspicious_reasons", [])
-    
-    subject = f"🚨 SECURITY ALERT: Suspicious Login Detected - {user_name}"
-    
-    reasons_html = "<ul>" + "".join([f"<li>{reason}</li>" for reason in suspicious_reasons]) + "</ul>"
-    reasons_text = "\n".join([f"- {reason}" for reason in suspicious_reasons])
-    
-    # HTML email body
-    html_body = f"""
+
+    f"🚨 SECURITY ALERT: Suspicious Login Detected - {user_name}"
+
+    reasons_html = (
+        "<ul>"
+        + "".join([f"<li>{reason}</li>" for reason in suspicious_reasons])
+        + "</ul>"
+    )
+
+    f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -230,43 +258,52 @@ def prepare_suspicious_login_email_content(user_data: Dict[str, Any], login_info
     </html>
     """
 
-def send_email(to_email: str, subject: str, html_body: str, text_body: str, priority: str = "normal") -> bool:
+
+def send_email(
+    to_email: str,
+    subject: str,
+    html_body: str,
+    text_body: str,
+    priority: str = "normal",
+) -> bool:
     try:
         # Validate email configuration
         if not EMAIL_CONFIG["sender_email"] or not EMAIL_CONFIG["sender_password"]:
             raise ValueError("Email credentials not configured")
-        
+
         # Create message
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
         message["From"] = EMAIL_CONFIG["sender_email"]
         message["To"] = to_email
-        
+
         # Set priority
         if priority == "high":
             message["X-Priority"] = "1"
             message["X-MSMail-Priority"] = "High"
-        
+
         # Create text and HTML parts
         text_part = MIMEText(text_body, "plain")
         html_part = MIMEText(html_body, "html")
-        
+
         message.attach(text_part)
         message.attach(html_part)
-        
+
         # Create secure connection and send email
         context = ssl.create_default_context()
-        
-        with smtplib.SMTP(EMAIL_CONFIG["smtp_server"], EMAIL_CONFIG["smtp_port"]) as server:
+
+        with smtplib.SMTP(
+            EMAIL_CONFIG["smtp_server"], EMAIL_CONFIG["smtp_port"]
+        ) as server:
             if EMAIL_CONFIG["use_tls"]:
                 server.starttls(context=context)
-            
+
             server.login(EMAIL_CONFIG["sender_email"], EMAIL_CONFIG["sender_password"])
             server.sendmail(EMAIL_CONFIG["sender_email"], to_email, message.as_string())
-        
+
         logger.info(f"Email sent successfully to {to_email}")
         return True
-        
+
     except Exception as e:
         logger.error(f"Failed to send email to {to_email}: {str(e)}")
         raise
@@ -275,14 +312,15 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str, prio
 # Cleanup task
 r = redis.Redis(host="redis", port=6379, db=0)
 
+
 @shared_task
 def cleanup_old_results(days: int = 7):
     try:
-        cutoff = (timezone.now() - timedelta(days=days)).timestamp()
+        (timezone.now() - timedelta(days=days)).timestamp()
         deleted = 0
 
         for key in r.scan_iter("celery-task-meta-*"):
-            task = r.get(key)
+            r.get(key)
             # Optionally parse timestamp if you stored one
             r.delete(key)
             deleted += 1

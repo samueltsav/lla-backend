@@ -7,7 +7,7 @@ from django.contrib.auth.models import (
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from .validators import ImageValidator
+from users.utils.validators import ImageValidator
 
 
 class UserManager(BaseUserManager):

@@ -22,7 +22,7 @@ class Language(BaseModel):
     ]
 
     name = models.CharField(max_length=50, choices=LANGUAGE_CHOICES, unique=True)
-    display_name = models.CharField(max_length=100)
+    language_id = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
 
@@ -38,6 +38,7 @@ class Syllabus(BaseModel):
         Language, on_delete=models.CASCADE, related_name="syllabi"
     )
     title = models.CharField(max_length=200)
+    syllabus_id = models.UUIDField(default=uuid.uuid4, editable=False)
     description = models.TextField()
     level = models.CharField(
         max_length=20,
@@ -48,7 +49,7 @@ class Syllabus(BaseModel):
         ],
     )
     total_lessons = models.IntegerField(default=0)
-    estimated_duration_weeks = models.IntegerField(default=1)
+    duration_weeks = models.IntegerField(default=1)
 
     class Meta:
         db_table = "syllabi"
@@ -62,11 +63,13 @@ class Lesson(BaseModel):
     syllabus = models.ForeignKey(
         Syllabus, on_delete=models.CASCADE, related_name="lessons"
     )
-    title = models.CharField(max_length=200)
+    topic = models.CharField(max_length=200)
+    lessson_id = models.UUIDField(default=uuid.uuid4, editable=False)
     description = models.TextField()
     content = models.JSONField(default=dict)  # AI-generated lesson content
     order = models.IntegerField(default=0)
     duration_minutes = models.IntegerField(default=30)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "lessons"
@@ -80,18 +83,18 @@ class Exercise(BaseModel):
     """Exercises for lessons"""
 
     EXERCISE_TYPES = [
-        ("text_to_speech", "Text to Speech"),
+        ("text_to_speech", "Text-To-Speech"),
         ("audio", "Audio Exercise"),
         ("flashcard", "Flashcard"),
         ("multiple_choice", "Multiple Choice"),
-        ("fill_blank", "Fill in the Blank"),
+        ("fill_blank", "Fill-in-the-Blank"),
         ("translation", "Translation"),
     ]
 
     lesson = models.ForeignKey(
         Lesson, on_delete=models.CASCADE, related_name="exercises"
     )
-    title = models.CharField(max_length=200)
+    topic = models.CharField(max_length=200)
     exercise_type = models.CharField(max_length=20, choices=EXERCISE_TYPES)
     content = models.JSONField(default=dict)  # Exercise data
     audio_url = models.URLField(blank=True, null=True)
@@ -103,7 +106,7 @@ class Exercise(BaseModel):
         ordering = ["order"]
 
     def __str__(self):
-        return f"{self.lesson.title} - {self.title}"
+        return f"{self.lesson.topic} - {self.topic}"
 
 
 class UserProgress(BaseModel):
@@ -141,8 +144,7 @@ class UserLearningPath(BaseModel):
         ],
         default="beginner",
     )
-    daily_goal_minutes = models.IntegerField(default=30)
-    streak_days = models.IntegerField(default=0)
+    daily_commitment_minutes = models.IntegerField(default=30)
     last_activity_date = models.DateField(auto_now=True)
     total_points = models.IntegerField(default=0)
 
@@ -151,4 +153,4 @@ class UserLearningPath(BaseModel):
         unique_together = [["uid", "language"]]
 
     def __str__(self):
-        return f"User {self.uid} - {self.language.display_name}"
+        return f"User {self.uid} - {self.language.language_id}"

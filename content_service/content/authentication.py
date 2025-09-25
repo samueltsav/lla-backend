@@ -7,6 +7,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from types import SimpleNamespace
 from dotenv import load_dotenv
 
+
 logger = logging.getLogger(__name__)
 load_dotenv()
 

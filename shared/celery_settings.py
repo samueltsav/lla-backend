@@ -1,13 +1,10 @@
-import os
-from datetime import timedelta
-from pickle import TRUE
 from dotenv import load_dotenv
 from kombu import Queue
 
 
 load_dotenv()
 # Broker settings
-CELERY_BROKER_URL = "redis://redis:6379/0"
+CELERY_BROKER_URL = "amqp://tecvinson:linguafrika@rabbitmq:5672//"
 CELERY_RESULT_BACKEND = "redis://redis:6379/1"
 
 # Task discovery settings

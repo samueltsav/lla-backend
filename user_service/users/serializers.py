@@ -13,12 +13,7 @@ class UserCreateSerializer(BaseUserCreateSerializer):
 
     class Meta(BaseUserCreateSerializer.Meta):
         model = User
-        fields = (
-            "uid",
-            "username",
-            "email",
-            "phone_number",
-        )
+        fields = "__all_"
 
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
@@ -27,34 +22,15 @@ class UserCreateSerializer(BaseUserCreateSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = [
-            "uid",
-            "username",
-            "email",
-            "phone_number",
-            "is_staff",
-            "is_active",
-            "first_name",
-            "last_name",
-            "dob",
-            "nationality",
-            "cor",
-            "photo",
-            "dor",
-            "updated_at",
-        ]
+        fields = "__all__"
         read_only_fields = ["uid"]
 
 
 class UserServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = [
-            "uid",
-            "username",
-            "email",
-        ]
-        read_only_fields = ["uid", "username", "email"]
+        fields = "__all__"
+        read_only_fields = ["uid"]
 
 
 class MyTokenCreateSerializer(TokenObtainPairSerializer):

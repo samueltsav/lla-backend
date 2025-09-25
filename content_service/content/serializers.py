@@ -5,14 +5,7 @@ from .models import Language, Syllabus, Lesson, Exercise, UserProgress, UserLear
 class LanguageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Language
-        fields = [
-            "id",
-            "name",
-            "display_name",
-            "description",
-            "is_active",
-            "created_at",
-        ]
+        fields = "__all__"
         read_only_fields = ["id", "created_at", "uid"]
 
 
@@ -24,20 +17,8 @@ class SyllabusSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Syllabus
-        fields = [
-            "id",
-            "language",
-            "language_name",
-            "title",
-            "description",
-            "level",
-            "total_lessons",
-            "lessons_count",
-            "estimated_duration_weeks",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["id", "created_at", "updated_at", "uid"]
+        fields = "__all__"
+        read_only_fields = ["id", "language_id", "created_at", "uid"]
 
     def get_lessons_count(self, obj):
         return obj.lessons.count()
@@ -49,20 +30,8 @@ class LessonSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Lesson
-        fields = [
-            "id",
-            "syllabus",
-            "syllabus_title",
-            "title",
-            "description",
-            "content",
-            "order",
-            "duration_minutes",
-            "exercises_count",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["id", "created_at", "updated_at", "uid"]
+        fields = "__all__"
+        read_only_fields = ["id", "created_at", "uid"]
 
     def get_exercises_count(self, obj):
         return obj.exercises.count()
@@ -73,20 +42,8 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Exercise
-        fields = [
-            "id",
-            "lesson",
-            "lesson_title",
-            "title",
-            "exercise_type",
-            "content",
-            "audio_url",
-            "order",
-            "points",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["id", "created_at", "updated_at", "uid"]
+        fields = "__all__"
+        read_only_fields = ["id", "created_at", "uid"]
 
 
 class UserProgressSerializer(serializers.ModelSerializer):
@@ -96,22 +53,8 @@ class UserProgressSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserProgress
-        fields = [
-            "id",
-            "syllabus",
-            "syllabus_title",
-            "lesson",
-            "lesson_title",
-            "exercise",
-            "exercise_title",
-            "completed",
-            "score",
-            "completion_date",
-            "time_spent_seconds",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["id", "created_at", "updated_at", "uid"]
+        fields = "__all__"
+        read_only_fields = ["__all__"]
 
 
 class UserLearningPathSerializer(serializers.ModelSerializer):
@@ -124,18 +67,5 @@ class UserLearningPathSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserLearningPath
-        fields = [
-            "id",
-            "language",
-            "language_name",
-            "current_syllabus",
-            "current_syllabus_title",
-            "proficiency_level",
-            "daily_goal_minutes",
-            "streak_days",
-            "last_activity_date",
-            "total_points",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["id", "created_at", "updated_at", "uid"]
+        fields = "__all__"
+        read_only_fields = ["id", "uid"]

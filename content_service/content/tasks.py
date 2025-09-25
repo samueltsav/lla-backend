@@ -70,42 +70,32 @@ def make_ai_request(endpoint: str, payload: Dict[str, Any]) -> Dict[str, Any]:
 @app.task(bind=True, max_retries=MAX_RETRIES, default_retry_delay=RETRY_BACKOFF)
 def generate_syllabus(
     self,
-    subject: str,
+    language: str,
     level: str,
+    total_lessons: int = 20,
     duration_weeks: int = 12,
     uid: Optional[str] = None,
-    course_id: Optional[str] = None,
 ):
-    """
-    Generate syllabus for a specific subject and learning level
-
-    Args:
-        subject: Subject name (e.g., "Spanish", "Python Programming")
-        level: Learning level (beginner, intermediate, advanced)
-        duration_weeks: Course duration in weeks
-        uid: Optional user ID for personalization
-        course_id: Optional course ID for tracking
-    """
     try:
         payload = {
             "task": "generate_syllabus",
             "parameters": {
-                "subject": subject,
+                "language": language,
                 "level": level,
+                "total_lessons": total_lessons,
                 "duration_weeks": duration_weeks,
                 "uid": uid,
-                "course_id": course_id,
                 "timestamp": datetime.now,
             },
         }
 
-        logger.info(f"Generating syllabus for {subject} - {level} level")
+        logger.info(f"Generating syllabus for {language} - {level} level")
         result = make_ai_request("/api/v1/generate/syllabus", payload)
 
         # Structure the response
         syllabus_data = {
             "syllabus_id": result.get("syllabus_id"),
-            "subject": subject,
+            "language": language,
             "level": level,
             "duration_weeks": duration_weeks,
             "modules": result.get("modules", []),
@@ -113,9 +103,8 @@ def generate_syllabus(
             "prerequisites": result.get("prerequisites", []),
             "assessment_methods": result.get("assessment_methods", []),
             "resources": result.get("resources", []),
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now.isoformat(),
             "uid": uid,
-            "course_id": course_id,
         }
 
         logger.info(f"Successfully generated syllabus: {syllabus_data['syllabus_id']}")
@@ -134,7 +123,7 @@ def generate_lesson(
     self,
     syllabus_id: str,
     module_id: str,
-    lesson_topic: str,
+    topic: str,
     level: str,
     uid: Optional[str] = None,
 ):
@@ -144,21 +133,21 @@ def generate_lesson(
             "parameters": {
                 "syllabus_id": syllabus_id,
                 "module_id": module_id,
-                "lesson_topic": lesson_topic,
+                "topic": topic,
                 "level": level,
                 "uid": uid,
                 "timestamp": datetime.now,
             },
         }
 
-        logger.info(f"Generating lesson for topic: {lesson_topic}")
+        logger.info(f"Generating lesson for topic: {topic}")
         result = make_ai_request("/api/v1/generate/lesson", payload)
 
         lesson_data = {
             "lesson_id": result.get("lesson_id"),
             "syllabus_id": syllabus_id,
             "module_id": module_id,
-            "topic": lesson_topic,
+            "topic": topic,
             "level": level,
             "content": {
                 "introduction": result.get("introduction"),
@@ -404,11 +393,12 @@ def sync_user_progress(self, content_id):
 def generate_content_analytics(self, content_id):
     pass
 
+
 @app.task(bind=True, name="content.tasks.generate_learning_path")
 def generate_learning_path(
     self,
     uid: str,
-    subject: str,
+    language: str,
     current_level: str,
     target_level: str,
     time_commitment: int,
@@ -419,7 +409,7 @@ def generate_learning_path(
             "task": "generate_learning_path",
             "parameters": {
                 "uid": uid,
-                "subject": subject,
+                "language": language,
                 "current_level": current_level,
                 "target_level": target_level,
                 "time_commitment": time_commitment,
@@ -434,7 +424,7 @@ def generate_learning_path(
         path_data = {
             "learning_path_id": result.get("learning_path_id"),
             "uid": uid,
-            "subject": subject,
+            "language": language,
             "current_level": current_level,
             "target_level": target_level,
             "estimated_duration_weeks": result.get("estimated_duration_weeks"),
@@ -507,21 +497,21 @@ def adapt_learning_path(
 
 # Workflow tasks
 @app.task
-def create_complete_course_workflow(subject: str, level: str, uid: str):
+def create_complete_course_workflow(language: str, level: str, uid: str):
     try:
         # Step 1: Generate syllabus
         syllabus_result = generate_syllabus.delay(
-            subject=subject, level=level, uid=uid
+            language=language, level=level, uid=uid
         ).get()
 
         # Step 2: Generate lessons for each module
         lesson_tasks = []
         for module in syllabus_result.get("modules", []):
-            for lesson_topic in module.get("lessons", []):
+            for topic in module.get("lessons", []):
                 lesson_task = generate_lesson.delay(
                     syllabus_id=syllabus_result["syllabus_id"],
                     module_id=module["module_id"],
-                    lesson_topic=lesson_topic,
+                    topic=topic,
                     level=level,
                     uid=uid,
                 )
@@ -561,14 +551,16 @@ def create_complete_course_workflow(subject: str, level: str, uid: str):
 
 # Cleanup tasks
 r = redis.Redis(host="redis", port=6379, db=0)
+
+
 @shared_task
 def cleanup_old_results(days: int = 7):
     try:
-        cutoff = (timezone.now() - timedelta(days=days)).timestamp()
+        (timezone.now() - timedelta(days=days)).timestamp()
         deleted = 0
 
         for key in r.scan_iter("celery-task-meta-*"):
-            task = r.get(key)
+            r.get(key)
             # Optionally parse timestamp if you stored one
             r.delete(key)
             deleted += 1
