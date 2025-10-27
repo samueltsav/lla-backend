@@ -6,9 +6,9 @@ from celery import Celery
 
 sys.path.append("/app")
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "user_management.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "user_service_config.django.dev")
 
-app = Celery("user_management")
+app = Celery("user_service_config")
 
 app.config_from_object("django.conf:settings", namespace="CELERY")
 

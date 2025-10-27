@@ -24,22 +24,6 @@ services:
     networks:
       - backend_network
 
-  postgres:
-    image: postgres:17.4
-    container_name: postgres
-    environment:
-      - POSTGRES_DB=UserManagement
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=samueltsav
-    ports:
-      - "5433:5432"
-    restart: unless-stopped
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - backend_network
-
   user-service:
     container_name: user-service
     build:
@@ -51,14 +35,12 @@ services:
       interval: 10s
       timeout: 3s
       retries: 25
+    env_file:
+      - ./user_service/.env
     environment:
       - PYTHONPATH=/app
-      - DJANGO_SETTINGS_MODULE=user_management.settings
-      - CELERY_BROKER_URL=amqp://tecvinson:linguafrika@rabbitmq:5672//
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - CONTENT_SERVICE_URL=http://content-service:8000
+      - DJANGO_SETTINGS_MODULE=user_service_config.django.dev
     depends_on:
-      - postgres
       - rabbitmq
       - redis
     volumes:
@@ -77,12 +59,11 @@ services:
       interval: 10s
       timeout: 3s
       retries: 25
+    env_file:
+      - ./content_service/.env
     environment:
       - PYTHONPATH=/app
-      - DJANGO_SETTINGS_MODULE=content_management.settings
-      - CELERY_BROKER_URL=amqp://tecvinson:linguafrika@rabbitmq:5672//
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - USER_SERVICE_URL=http://user-service:8000
+      - DJANGO_SETTINGS_MODULE=content_service_config.django.dev
     depends_on:
       - rabbitmq
       - redis
@@ -98,8 +79,6 @@ services:
     command: worker
     environment:
       - PYTHONPATH=/app
-      - CELERY_BROKER_URL=amqp://tecvinson:linguafrika@rabbitmq:5672//
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
     depends_on:
       user-service:
         condition: service_healthy
@@ -119,8 +98,6 @@ services:
     command: beat
     environment:
       - PYTHONPATH=/app
-      - CELERY_BROKER_URL=amqp://tecvinson:linguafrika@rabbitmq:5672//
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
     depends_on:
       user-service:
         condition: service_healthy
@@ -142,8 +119,6 @@ services:
       - "5555:5555"
     environment:
       - PYTHONPATH=/app
-      - CELERY_BROKER_URL=amqp://tecvinson:linguafrika@rabbitmq:5672//
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
     depends_on:
       user-service:
         condition: service_healthy

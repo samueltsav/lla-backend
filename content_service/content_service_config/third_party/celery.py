@@ -6,9 +6,9 @@ from celery import Celery
 
 sys.path.append("/app")
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "content_management.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "content_service_config.django.dev")
 
-app = Celery("content_management")
+app = Celery("config")
 
 app.config_from_object("django.conf:settings", namespace="CELERY")
 

@@ -4,29 +4,17 @@ import smtplib
 import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import os
 from datetime import datetime, timedelta
 from django.utils import timezone
 from typing import Dict, Any
 from celery import Celery, shared_task
-from dotenv import load_dotenv
+from user_service_config.django import base
 
 
-load_dotenv()
 
 logger = get_task_logger(__name__)
 
-app = Celery("user_management")
-
-# Email configuration
-EMAIL_CONFIG = {
-    "smtp_server": os.getenv("EMAIL_HOST"),
-    "smtp_port": int(os.getenv("EMAIL_PORT")),
-    "sender_password": os.getenv("EMAIL_HOST_PASSWORD"),
-    "host_user": os.getenv("EMAIL_HOST_USER"),
-    "use_tls": os.getenv("EMAIL_USE_TLS"),
-    "default_from_email": os.getenv("DEFAULT_FROM_EMAIL"),
-}
+app = Celery("user_service_config")
 
 
 @app.task(
@@ -268,13 +256,13 @@ def send_email(
 ) -> bool:
     try:
         # Validate email configuration
-        if not EMAIL_CONFIG["sender_email"] or not EMAIL_CONFIG["sender_password"]:
+        if not base.DEFAULT_FROM_EMAIL:
             raise ValueError("Email credentials not configured")
 
         # Create message
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
-        message["From"] = EMAIL_CONFIG["sender_email"]
+        message["From"] = base.DEFAULT_FROM_EMAIL
         message["To"] = to_email
 
         # Set priority
@@ -283,23 +271,21 @@ def send_email(
             message["X-MSMail-Priority"] = "High"
 
         # Create text and HTML parts
-        text_part = MIMEText(text_body, "plain")
+    
         html_part = MIMEText(html_body, "html")
-
-        message.attach(text_part)
         message.attach(html_part)
 
         # Create secure connection and send email
         context = ssl.create_default_context()
 
         with smtplib.SMTP(
-            EMAIL_CONFIG["smtp_server"], EMAIL_CONFIG["smtp_port"]
+            base.AZURE_EMAIL_CONNECTION_STRING, base.EMAIL_PORT
         ) as server:
-            if EMAIL_CONFIG["use_tls"]:
+            if base.use_tls:
                 server.starttls(context=context)
 
-            server.login(EMAIL_CONFIG["sender_email"], EMAIL_CONFIG["sender_password"])
-            server.sendmail(EMAIL_CONFIG["sender_email"], to_email, message.as_string())
+            server.login(base.DEFAULT_FROM_EMAIL)
+            server.sendmail(base.DEFAULT_FROM_EMAIL, to_email, message.as_string())
 
         logger.info(f"Email sent successfully to {to_email}")
         return True

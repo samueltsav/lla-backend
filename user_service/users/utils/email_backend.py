@@ -1,75 +1,42 @@
+from azure.communication.email import EmailClient
+from azure.core.exceptions import HttpResponseError
 from django.core.mail.backends.base import BaseEmailBackend
-from django.core.mail import EmailMessage
-from azure.communication.email import (
-    EmailClient,
-    EmailContent,
-    EmailRecipients,
-    EmailAddress,
-)
-from django.conf import settings
+from user_service_config.django import base
 
 
 class AzureEmailBackend(BaseEmailBackend):
     """
-    Custom Django EmailBackend using Azure ACS.
+    Custom Django email backend for Azure Communication Services Email.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        connection_string = getattr(settings, "AZURE_EMAIL_CONNECTION_STRING", None)
-        if not connection_string:
-            raise ValueError("AZURE_EMAIL_CONNECTION_STRING not found")
-        self.client = EmailClient.from_connection_string(connection_string)
-        self.sender = getattr(settings, "AZURE_EMAIL_SENDER", None)
-
     def send_messages(self, email_messages):
-        """
-        Send one or more EmailMessage objects and return the number sent.
-        """
+        if not email_messages:
+            return 0
+
+        client = EmailClient.from_connection_string(base.AZURE_EMAIL_CONNECTION_STRING)
         sent_count = 0
+
         for message in email_messages:
-            if self._send(message):
+            email_data = {
+                "senderAddress": base.DEFAULT_FROM_EMAIL,
+                "recipients": {
+                    "to": [{"address": addr} for addr in message.to],
+                },
+                "content": {
+                    "subject": message.subject,
+                    "plainText": message.body,
+                },
+            }
+
+            try:
+                poller = client.begin_send(email_data)
+                result = poller.result()
                 sent_count += 1
+
+            except HttpResponseError as e:
+                print("Failed to send Email:")
+                print("Status Code:", e.status_code)
+                print("Error Message:", e.message)
+                print("Response:", e.response.text())
+                
         return sent_count
-
-    def _send(self, email_message: EmailMessage):
-        """
-        Convert Django EmailMessage to ACS Email and send it.
-        """
-        if not email_message.recipients():
-            return False
-
-        try:
-            recipients = {
-                "to": [EmailAddress(address=addr) for addr in email_message.to],
-            }
-            if email_message.cc:
-                recipients["cc"] = [
-                    EmailAddress(address=addr) for addr in email_message.cc
-                ]
-            if email_message.bcc:
-                recipients["bcc"] = [
-                    EmailAddress(address=addr) for addr in email_message.bcc
-                ]
-
-            content = EmailContent(
-                subject=email_message.subject,
-                plain_text=email_message.body,
-            )
-
-            message = {
-                "senderAddress": self.sender,
-                "recipients": EmailRecipients(**recipients),
-                "content": content,
-            }
-
-            poller = self.client.begin_send(message)
-            result = poller.result()
-
-            # Check if ACS accepted the email
-            if result:
-                return True
-        except Exception as e:
-            if not self.fail_silently:
-                raise
-        return False

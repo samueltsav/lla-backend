@@ -4,19 +4,16 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import get_user_model
-import os
 from .serializers import UserServiceSerializer, MyTokenCreateSerializer
 from django.http import JsonResponse
 from django.views import View
-from dotenv import load_dotenv
+from user_service_config.django import base
 
-load_dotenv()
 
 User = get_user_model()
 
 
-JWT_KEY = os.getenv("JWT_KEY")
-
+JWT_KEY = base.JWT_KEY
 
 @api_view(["POST"])
 @permission_classes([AllowAny])

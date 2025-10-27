@@ -5,12 +5,12 @@ import logging
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 from types import SimpleNamespace
-from dotenv import load_dotenv
+from content_service_config.django import base
 
 
 logger = logging.getLogger(__name__)
-load_dotenv()
 
+JWT_KEY = base.JWT_KEY
 
 class AuthenticatedUser(SimpleNamespace):
     @property
@@ -39,9 +39,8 @@ class JWTAuthentication(BaseAuthentication):
 
         try:
             payload = jwt.decode(
-                token,
-                os.getenv("JWT_KEY"),
-                algorithms=[os.getenv("JWT_ALGORITHM")],
+                token, JWT_KEY,
+                algorithms=[env("JWT_ALGORITHM")],
             )
         except jwt.ExpiredSignatureError:
             raise AuthenticationFailed("Expired token")

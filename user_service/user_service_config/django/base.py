@@ -1,35 +1,38 @@
 import os
-from datetime import timedelta
-from pathlib import Path
 import sys
-from dotenv import load_dotenv
-from shared import celery_settings
+from datetime import timedelta
+from user_service_config.third_party.axes import *
+from user_service_config.third_party.celery import *
+from user_service_config.third_party.djoser import *
+from user_service_config.third_party.spectacular import *
+from user_service_config.third_party.cache import *
+from user_service_config.env import BASE_DIR, env
 
-load_dotenv()
+
+# Load environment variables from .env file
+env.read_env(os.path.join(BASE_DIR, ".env"))
+
 sys.path.append("/app")
 
+DJANGO_ENV = env("DJANGO_SETTINGS_MODULE")
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+DEBUG = env.bool("DEBUG", default=True)
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+ALLOWED_HOSTS = ["*"]
+JWT_ALGORITHM = env("JWT_ALGORITHM")
+CONTENT_SERVICE_URL = env("CONTENT_SERVICE_URL")
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-
-JWT_KEY = os.getenv("JWT_KEY")
-
-JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
-
-DEBUG = os.getenv("DEBUG", default=False)
-
-CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
-
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",")
-
-CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
-
-CELERY_BROKER_URL = celery_settings.CELERY_BROKER_URL
-CELERY_RESULT_BACKEND = celery_settings.CELERY_RESULT_BACKEND
-
-CONTENT_SERVICE_URL = os.getenv("CONTENT_SERVICE_URL")
-
+# Switching JWT_KEY and SECRET_KEY based on environment
+if DJANGO_ENV == "user_service_config.django.dev":
+    JWT_KEY = env("DEV_JWT_KEY")
+    SECRET_KEY = env("DEV_SECRET_KEY")
+elif DJANGO_ENV == "user_service_config.django.stag":
+    JWT_KEY = env("STAG_JWT_KEY")
+    SECRET_KEY = env("STAG_SECRET_KEY")
+else:
+    JWT_KEY = env("PROD_JWT_KEY")
+    SECRET_KEY = env("PROD_SECRET_KEY")
 
 # Application definition
 INSTALLED_APPS = [
@@ -70,7 +73,7 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 
-ROOT_URLCONF = "user_management.urls"
+ROOT_URLCONF = "user_service_config.urls"
 
 TEMPLATES = [
     {
@@ -88,20 +91,62 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "user_management.wsgi.application"
+WSGI_APPLICATION = "user_service_config.wsgi.application"
 
-# Datatase configuation
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME"),
-        "USER": os.getenv("DB_USER"),
-        "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST"),
-        "PORT": os.getenv("DB_PORT"),
+# Switching databases based on environment
+if DJANGO_ENV == "user_service_config.django.dev":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": env("DEV_DB_NAME"),
+            "USER": env("DEV_DB_USER"),
+            "PASSWORD": env("DEV_DB_PASSWORD"),
+            "HOST": env("DEV_DB_HOST"),
+            "PORT": env("DEV_DB_PORT"),
+            "OPTIONS": {
+                "sslmode": env("DEV_DB_SSLMODE", default="require"),
+            },
+        }
     }
-}
+elif DJANGO_ENV == "user_service_config.django.stag":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": env("STAG_DB_NAME"),
+            "USER": env("STAG_DB_USER"),
+            "PASSWORD": env("STAG_DB_PASSWORD"),
+            "HOST": env("STAG_DB_HOST"),
+            "PORT": env("STAG_DB_PORT"),
+            "OPTIONS": {
+                "sslmode": env("STAG_DB_SSLMODE", default="require"),
+            },
+        }
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": env("PROD_DB_NAME"),
+            "USER": env("PROD_DB_USER"),
+            "PASSWORD": env("PROD_DB_PASSWORD"),
+            "HOST": env("PROD_DB_HOST"),
+            "PORT": env("PROD_DB_PORT"),
+            "OPTIONS": {
+                "sslmode": env("PROD_DB_SSLMODE", default="require"),
+            },
+        }
+    }
 
+# Email configuration
+EMAIL_BACKEND = "users.utils.email_backend.AzureEmailBackend"
+AZURE_EMAIL_CONNECTION_STRING = env("AZURE_EMAIL_CONNECTION_STRING")
+AZURE_EMAIL_SENDER = env("AZURE_EMAIL_SENDER", default="")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="")
+PORT = env.int("EMAIL_PORT", default=587)
+
+DOMAIN = env("DOMAIN", default="localhost:3000")
+SITE_NAME = env("SITE_NAME", default="LinguAfrika")
+SITE_ID = 1
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -167,24 +212,15 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
-# Default schema
-SPECTACULAR_SETTINGS = {
-    "TITLE": "LinguAfrika User Management Service",
-    "DESCRIPTION": "APIs for the User Management Service",
-    "VERSION": "0.28.0",
-    "SERVE_INCLUDE_SCHEMA": False,
-    "COMPONENT_SPLIT_REQUEST": True,
-    "COMPONENT_NO_READ_ONLY_REQUIRED": True,
-}
-
+# Simple JWT Settings for JWT Authentication
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=7),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=15),
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
-    "ALGORITHM": os.getenv("JWT_ALGORITHM"),
-    "SIGNING_KEY": os.getenv("JWT_KEY"),
+    "ALGORITHM": JWT_ALGORITHM,
+    "SIGNING_KEY": JWT_KEY,
     "VERIFYING_KEY": "",
     "AUDIENCE": None,
     "ISSUER": None,
@@ -201,63 +237,12 @@ SIMPLE_JWT = {
     "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
     "JTI_CLAIM": "jti",
     "SLIDING_TOKEN_REFRESH_EXP_CLAIM": "refresh_exp",
-    "SLIDING_TOKEN_LIFETIME": timedelta(days=7),
-    "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=15),
+    "SLIDING_TOKEN_LIFETIME": timedelta(days=1),
+    "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=7),
     "TOKEN_OBTAIN_SERIALIZER": "users.serializers.MyTokenCreateSerializer",
     "TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSerializer",
     "TOKEN_VERIFY_SERIALIZER": "rest_framework_simplejwt.serializers.TokenVerifySerializer",
     "TOKEN_BLACKLIST_SERIALIZER": "rest_framework_simplejwt.serializers.TokenBlacklistSerializer",
     "SLIDING_TOKEN_OBTAIN_SERIALIZER": "rest_framework_simplejwt.serializers.TokenObtainSlidingSerializer",
     "SLIDING_TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSlidingSerializer",
-}
-
-# Email Configuration
-EMAIL_BACKEND = os.getenv("EMAIL_BACKEND")
-AZURE_EMAIL_CONNECTION_STRING = os.getenv("AZURE_EMAIL_CONNECTION_STRING")
-AZURE_EMAIL_SENDER = os.getenv("AZURE_EMAIL_SENDER")
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
-EMAIL_PORT = os.getenv("EMAIL_PORT", 587)
-
-# Djoser Settings
-DJOSER_SETTINGS = {
-    "Login_FIELD": "email",
-    "USER_CREATE_PASSWORD_RETYPE": True,
-    "SET_PASSWORD_RETYPE": True,
-    "PASSWORD_RESET_CONFIRM_URL": "#/password/reset/confirm/{uid}/{token}",
-    "PASSWORD_RESET_SHOW_EMAIL_NOT_FOUND": True,
-    "USERNAME_RESET_CONFIRM_URL": "#/username/reset/confirm/{uid}/{token}",
-    "ACTIVATION_URL": "#/activate/{uid}/{token}",
-    "SEND_ACTIVATION_EMAIL": True,
-    "SEND_CONFIRMATION_EMAIL": True,
-    "TOKEN_MODEL": None,
-    "LOGOUT_ON_PASSWORD_CHANGE": True,
-    "SERIALIZERS": {
-        "user_create": "users.serializers.UserCreateSerializer",
-        "user": "users.serializers.UserSerializer",
-        "current_user": "users.serializers.UserSerializer",
-        "token_create": "users.serializers.MyTokenCreateSerializer",
-    },
-}
-
-
-DOMAIN = "linguafrika.com"
-SITE_NAME = "LinguAfrika"
-SITE_ID = 1
-
-# Account lockout settings
-AXES_FAILURE_LIMIT = 3  # Number of failed attempts before lockout
-AXES_COOLOFF_TIME = (
-    20 / 3600
-)  # Cool-off 20 seconds i.e since there are 3600 sec in one hour
-AXES_RESET_ON_SUCCESS = True
-
-
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://redis:6379/0",
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        },
-    }
 }

@@ -1,7 +1,7 @@
 import os
-
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "content_management.settings")
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "content_service_config.django.dev")
 
 application = get_wsgi_application()

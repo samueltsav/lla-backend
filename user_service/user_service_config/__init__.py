@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-from .celery import app as celery_app
+from user_service_config.third_party.celery import app as celery_app
 import sys
 
 sys.path.append("/app")

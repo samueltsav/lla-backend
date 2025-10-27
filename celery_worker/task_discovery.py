@@ -30,7 +30,9 @@ def discover_tasks():
 
 
 def setup_django_environments():
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "user_management.settings")
+    os.environ.setdefault(
+        "DJANGO_SETTINGS_MODULE", "content_service_config.django.dev"
+    )
     try:
         import django
         from django.conf import settings

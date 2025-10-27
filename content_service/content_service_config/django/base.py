@@ -1,37 +1,43 @@
 import os
-from pathlib import Path
-from datetime import timedelta
 import sys
-from dotenv import load_dotenv
 import django_mongodb_backend
-from shared import celery_settings
+from content_service_config.third_party.celery import *
+from content_service_config.third_party.simplejwt import *
+from content_service_config.third_party.spectacular import *
+from content_service_config.third_party.cache import *
+from content_service_config.env import BASE_DIR, env
 
 
-load_dotenv()
 sys.path.append("/app")
 
+env.read_env(os.path.join(BASE_DIR, ".env"))
 
-# Build paths inside the project like this: BASE_DIR / "subdir".
-BASE_DIR = Path(__file__).resolve().parent.parent
+DJANGO_ENV = env("DJANGO_SETTINGS_MODULE", default="user_service_config.django.dev")
 
-SECRET_KEY = os.getenv("SECRET_KEY")
 
-JWT_KEY = os.getenv("JWT_KEY")
+DEBUG = env.bool("DEBUG", default=True)
 
-JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 
-USER_SERVICE_URL = os.getenv("USER_SERVICE_URL")
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
-DEBUG = os.getenv("DEBUG", default=False)
+ALLOWED_HOSTS = ["*"]
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",")
 
-CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+# Switching JWT_KEY and SECRET_KEY based on the production environment
+if DJANGO_ENV == "content_service_config.django.dev":
+    JWT_KEY = env("DEV_JWT_KEY")
+    SECRET_KEY = env("DEV_SECRET_KEY")
+elif DJANGO_ENV == "content_service_config.django.stag":
+    JWT_KEY = env("STAG_JWT_KEY")
+    SECRET_KEY = env("STAG_SECRET_KEY")
+else:
+    JWT_KEY = env("PROD_JWT_KEY")
+    SECRET_KEY = env("PROD_SECRET_KEY")
 
-CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
+JWT_ALGORITHM = env("JWT_ALGORITHM")
 
-CELERY_BROKER_URL = celery_settings.CELERY_BROKER_URL
-CELERY_RESULT_BACKEND = celery_settings.CELERY_RESULT_BACKEND
+USER_SERVICE_URL = env("USER_SERVICE_URL")
 
 # Media files
 MEDIA_URL = "/media/"
@@ -39,9 +45,9 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 # Application definition
 INSTALLED_APPS = [
-    "content_management.apps.MongoAdminConfig",
-    "content_management.apps.MongoAuthConfig",
-    "content_management.apps.MongoContentTypesConfig",
+    "content_service_config.apps.MongoAdminConfig",
+    "content_service_config.apps.MongoAuthConfig",
+    "content_service_config.apps.MongoContentTypesConfig",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
@@ -64,7 +70,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "content_management.urls"
+ROOT_URLCONF = "content_service_config.urls"
 
 # Rest Framework Settings
 REST_FRAMEWORK = {
@@ -77,28 +83,6 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-}
-
-
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=7),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=15),
-    "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": True,
-    "UPDATE_LAST_LOGIN": True,
-    "ALGORITHM": os.getenv("JWT_ALGORITHM"),
-    "SIGNING_KEY": os.getenv("JWT_KEY"),
-}
-
-
-# Default schema
-SPECTACULAR_SETTINGS = {
-    "TITLE": "LinguAfrika Content Management Service",
-    "DESCRIPTION": "APIs for the Content Management Service",
-    "VERSION": "0.28.0",
-    "SERVE_INCLUDE_SCHEMA": False,
-    "COMPONENT_SPLIT_REQUEST": True,
-    "COMPONENT_NO_READ_ONLY_REQUIRED": True,
 }
 
 TEMPLATES = [
@@ -117,15 +101,25 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "content_management.wsgi.application"
+WSGI_APPLICATION = "content_service_config.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+# Datatase configuation
 
-DATABASES = {
-    "default": django_mongodb_backend.parse_uri(os.getenv("CONNECTION_STRING"))
-}
-
+# Switching databases based on environment
+if DJANGO_ENV == "user_service_config.django.dev":
+    DATABASES = {
+        "default": django_mongodb_backend.parse_uri(env("DEV_CONNECTION_STRING"))
+    }
+elif DJANGO_ENV == "user_service_config.django.stag":
+    DATABASES = {
+        "default": django_mongodb_backend.parse_uri(env("STAG_CONNECTION_STRING"))
+    }
+else:
+    DATABASES = {
+        "default": django_mongodb_backend.parse_uri(env("PROD_CONNECTION_STRING"))
+    }
 
 # Database routers
 # https://docs.djangoproject.com/en/dev/ref/settings/#database-routers
@@ -170,14 +164,4 @@ MIGRATION_MODULES = {
     "admin": "mongo_migrations.admin",
     "auth": "mongo_migrations.auth",
     "contenttypes": "mongo_migrations.contenttypes",
-}
-
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://reis:6379/0",
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        }
-    }
 }

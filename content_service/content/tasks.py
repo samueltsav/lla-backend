@@ -13,7 +13,7 @@ from django.utils import timezone
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Celery("content_management")
+app = Celery("content_service_config")
 
 # AI Agent configuration
 AI_AGENT_BASE_URL = "http://ai-agents-service:8000"

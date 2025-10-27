@@ -3,8 +3,8 @@ import requests
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
-
 from .tasks import send_login_notification_email, send_suspicious_login_alert
+
 
 logger = logging.getLogger(__name__)
 
