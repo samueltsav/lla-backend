@@ -6,6 +6,5 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-env_user_service.zip
-env_content_service.zip
+.env.zip
 

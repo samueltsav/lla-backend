@@ -142,7 +142,7 @@ EMAIL_BACKEND = "users.utils.email_backend.AzureEmailBackend"
 AZURE_EMAIL_CONNECTION_STRING = env("AZURE_EMAIL_CONNECTION_STRING")
 AZURE_EMAIL_SENDER = env("AZURE_EMAIL_SENDER", default="")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="")
-PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 
 DOMAIN = env("DOMAIN", default="localhost:3000")
 SITE_NAME = env("SITE_NAME", default="LinguAfrika")

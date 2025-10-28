@@ -2,18 +2,21 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from django.http import JsonResponse
 from rest_framework import status
 from django.contrib.auth import get_user_model
-from .serializers import UserServiceSerializer, MyTokenCreateSerializer
-from django.http import JsonResponse
+from .serializers import UserSerializer, MyTokenCreateSerializer
 from django.views import View
+from rest_framework import status
 from user_service_config.django import base
+import logging
 
 
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
-
 JWT_KEY = base.JWT_KEY
+
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -45,7 +48,7 @@ def get_user_by_uid(request, uid):
 
     try:
         user = User.objects.get(id=uid)
-        serializer = UserServiceSerializer(user)
+        serializer = UserSerializer(user)
         return Response(serializer.data, status=status.HTTP_200_OK)
     except User.DoesNotExist:
         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)

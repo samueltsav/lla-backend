@@ -10,6 +10,7 @@ User = get_user_model()
 class UserCreateSerializer(BaseUserCreateSerializer):
     uid = serializers.IntegerField(source="id", read_only=True)
     password = serializers.CharField(write_only=True)
+    email = serializers.EmailField()
 
     class Meta(BaseUserCreateSerializer.Meta):
         model = User
@@ -22,15 +23,33 @@ class UserCreateSerializer(BaseUserCreateSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = "__all__"
-        read_only_fields = ["uid"]
-
-
-class UserServiceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = "__all__"
-        read_only_fields = ["uid"]
+        fields = [
+            "uid",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "phone_number",
+            "dob",
+            "cor",
+            "nationality",
+            "photo",
+            "last_login",
+            "dor",
+            "updated_at",
+            "is_active",
+            "is_staff",
+            "is_superuser",
+        ]
+        read_only_fields = [
+            "uid",
+            "is_active",
+            "is_staff",
+            "is_superuser",
+            "last_login",
+            "dor",
+            "updated_at",
+        ]
 
 
 class MyTokenCreateSerializer(TokenObtainPairSerializer):
