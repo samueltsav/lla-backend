@@ -73,7 +73,7 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
             echo ${{ secrets.REGISTRY_PASSWORD }} | docker login ${{ env.AZURE_REGISTRY_LOGIN_SERVER }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
-            sudo az acr login --name linguafrikadevregistry --username ${{ secrets.REGISTRY_USERNAME }} --password ${{ secrets.REGISTRY_PASSWORD }}
+            sudo az acr login --name ${{ env.AZURE_REGISTRY_NAME }} --username ${{ secrets.REGISTRY_USERNAME }} --password ${{ secrets.REGISTRY_PASSWORD }}
             cd /home/${{ env.VM_USER_NAME }}/${{ env.APP_NAME }}
             sudo docker compose pull
             sudo docker compose up -d --build
