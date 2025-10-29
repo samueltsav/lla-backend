@@ -65,7 +65,7 @@ jobs:
           source: "docker-compose.yml"
           target: "/home/${{ env.VM_USER_NAME }}/${{ env.APP_NAME }}"
 
-      - name: Executing remote SSH commands using password
+      - name: Executing remote SSH commands using SSH key
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ env.VM_IP_ADDRESS }}
