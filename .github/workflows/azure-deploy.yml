@@ -1,0 +1,79 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+  AZURE_REGISTRY_NAME: ${{ secrets.AZURE_REGISTRY_NAME }}
+  AZURE_REGISTRY_LOGIN_SERVER: ${{ secrets.AZURE_REGISTRY_LOGIN_SERVER }}
+  APP_NAME: "linguafrika-dev-app"
+  VM_IP_ADDRESS: ${{ secrets.VM_IP_ADDRESS }}
+  VM_USER_NAME: ${{ secrets.VM_USER_NAME }}
+  VM_PASSWORD: ${{ secrets.VM_PASSWORD }}
+  environment: development
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in with Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_APP_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: "Login to Azure Container Registry"
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.AZURE_REGISTRY_LOGIN_SERVER }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push user-service image
+        run: |
+          docker build -t ${{ env.AZURE_REGISTRY_LOGIN_SERVER }}/user-service:${{ github.sha }} ./user_service
+          docker push ${{ env.AZURE_REGISTRY_LOGIN_SERVER }}/user-service:${{ github.sha }}
+
+      - name: Build and push content-service image
+        run: |
+          docker build -t ${{ env.AZURE_REGISTRY_LOGIN_SERVER }}/content-service:${{ github.sha }} ./content_service
+          docker push ${{ env.AZURE_REGISTRY_LOGIN_SERVER }}/content-service:${{ github.sha }}
+
+      - name: Build and push celery-worker image
+        run: |
+          docker build -t ${{ env.AZURE_REGISTRY_LOGIN_SERVER }}/celery-worker:${{ github.sha }} ./celery_worker
+          docker push ${{ env.AZURE_REGISTRY_LOGIN_SERVER }}/celery-worker:${{ github.sha }}
+
+      - name: Copy docker-compose.yml to remote VM
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ env.LINGUAFRIKA_DEV_VM }}
+          username: ${{ env.VM_USER_NAME }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "/home/${{ env.VM_USER_NAME }}/${{ env.APP_NAME }}"
+
+      - name: Executing remote SSH commands using password
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ env.VM_USER_NAME }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            docker login ${{ env.AZURE_REGISTRY_LOGIN_SERVER }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+            sudo az acr login --name linguafrikadevregistry --username ${{ secrets.REGISTRY_USERNAME }} --password ${{ secrets.REGISTRY_PASSWORD }}
+            cd /home/${{ env.VM_USER_NAME }}/${{ env.APP_NAME }}
+            sudo docker compose pull
+            sudo docker compose up -d --build
