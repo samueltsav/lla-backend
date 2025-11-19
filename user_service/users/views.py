@@ -7,7 +7,6 @@ from rest_framework import status
 from django.contrib.auth import get_user_model
 from .serializers import UserSerializer, MyTokenCreateSerializer
 from django.views import View
-from rest_framework import status
 from user_service_config.django import base
 import logging
 
