@@ -6,7 +6,7 @@ class LanguageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Language
         fields = "__all__"
-        read_only_fields = ["id", "created_at", "uid"]
+        read_only_fields = ["id", "created_at", "user_id"]
 
 
 class SyllabusSerializer(serializers.ModelSerializer):
@@ -18,7 +18,7 @@ class SyllabusSerializer(serializers.ModelSerializer):
     class Meta:
         model = Syllabus
         fields = "__all__"
-        read_only_fields = ["id", "language_id", "created_at", "uid"]
+        read_only_fields = ["id", "language_id", "created_at", "user_id"]
 
     def get_lessons_count(self, obj):
         return obj.lessons.count()
@@ -31,7 +31,7 @@ class LessonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lesson
         fields = "__all__"
-        read_only_fields = ["id", "created_at", "uid"]
+        read_only_fields = ["id", "created_at", "user_id"]
 
     def get_exercises_count(self, obj):
         return obj.exercises.count()
@@ -43,7 +43,7 @@ class ExerciseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exercise
         fields = "__all__"
-        read_only_fields = ["id", "created_at", "uid"]
+        read_only_fields = ["id", "created_at", "user_id"]
 
 
 class UserProgressSerializer(serializers.ModelSerializer):
@@ -68,4 +68,4 @@ class UserLearningPathSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserLearningPath
         fields = "__all__"
-        read_only_fields = ["id", "uid"]
+        read_only_fields = ["id", "user_id"]

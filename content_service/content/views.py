@@ -30,7 +30,7 @@ class LanguageViewSet(viewsets.ModelViewSet):
         return [permission() for permission in permission_classes]
 
     def perform_create(self, serializer):
-        serializer.save(uid=self.request.user.id)
+        serializer.save(user_id=self.request.user.id)
 
 
 class SyllabusViewSet(viewsets.ModelViewSet):
@@ -42,10 +42,10 @@ class SyllabusViewSet(viewsets.ModelViewSet):
         # Users can see their own syllabi and public ones
         if hasattr(self.request.user, "is_staff") and self.request.user.is_staff:
             return Syllabus.objects.all()
-        return Syllabus.objects.filter(uid=self.request.user.id)
+        return Syllabus.objects.filter(user_id=self.request.user.id)
 
     def perform_create(self, serializer):
-        serializer.save(uid=self.request.user.id)
+        serializer.save(user_id=self.request.user.id)
 
     @action(detail=True, methods=["get"])
     def lessons(self, request, pk=None):
@@ -63,7 +63,7 @@ class SyllabusViewSet(viewsets.ModelViewSet):
         syllabus = get_object_or_404(Syllabus, pk=pk)
 
         # Check permissions
-        if syllabus.uid != request.user.id and not self.request.user.is_staff:
+        if syllabus.user_id != request.user.id and not self.request.user.is_staff:
             return Response(
                 {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
             )
@@ -82,15 +82,15 @@ class LessonViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
 
     def get_queryset(self):
-        return Lesson.objects.filter(uid=self.request.user.id)
+        return Lesson.objects.filter(user_id=self.request.user.id)
 
     def perform_create(self, serializer):
-        serializer.save(uid=self.request.user.id)
+        serializer.save(user_id=self.request.user.id)
 
     @action(detail=True, methods=["get"])
     def exercises(self, request, pk=None):
         """Get all exercises for a lesson"""
-        lesson = get_object_or_404(Lesson, pk=pk, uid=request.user.id)
+        lesson = get_object_or_404(Lesson, pk=pk, user_id=request.user.id)
         exercises = lesson.exercises.all()
         serializer = ExerciseSerializer(exercises, many=True)
         return Response(serializer.data)
@@ -102,10 +102,10 @@ class ExerciseViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
 
     def get_queryset(self):
-        return Exercise.objects.filter(uid=self.request.user.id)
+        return Exercise.objects.filter(user_id=self.request.user.id)
 
     def perform_create(self, serializer):
-        serializer.save(uid=self.request.user.id)
+        serializer.save(user_id=self.request.user.id)
 
 
 class UserProgressViewSet(viewsets.ModelViewSet):
@@ -114,10 +114,10 @@ class UserProgressViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return UserProgress.objects.filter(uid=self.request.user.id)
+        return UserProgress.objects.filter(user_id=self.request.user.id)
 
     def perform_create(self, serializer):
-        serializer.save(uid=self.request.user.id)
+        serializer.save(user_id=self.request.user.id)
 
     @action(detail=False, methods=["get"])
     def dashboard(self, request):
@@ -138,7 +138,7 @@ class UserProgressViewSet(viewsets.ModelViewSet):
                 "completed_lessons": completed_lessons,
                 "completed_exercises": completed_exercises,
                 "total_points": total_points,
-                "uid": request.user.id,
+                "user_id": request.user.id,
             }
         )
 
@@ -149,10 +149,10 @@ class UserLearningPathViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return UserLearningPath.objects.filter(uid=self.request.user.id)
+        return UserLearningPath.objects.filter(user_id=self.request.user.id)
 
     def perform_create(self, serializer):
-        serializer.save(uid=self.request.user.id)
+        serializer.save(user_id=self.request.user.id)
 
 
 # Health Check

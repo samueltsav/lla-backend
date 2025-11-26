@@ -12,9 +12,10 @@ class UserAdminCreationForm(forms.ModelForm):
     class Meta:
         model = User
         fields = (
-            "username",
+            "id",
             "email",
-            "phone_number",
+            "first_name",
+            "last_name",
         )
 
     def clean_password2(self):
@@ -38,12 +39,10 @@ class UserAdminChangeForm(forms.ModelForm):
     class Meta:
         model = User
         fields = (
-            "username",
+            "id",
             "email",
-            "phone_number",
-            "password",
-            "is_superuser",
-            "is_active",
+            "first_name",
+            "last_name",
         )
 
     def clean_password(self):

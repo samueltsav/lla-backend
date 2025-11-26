@@ -7,7 +7,7 @@ class BaseModel(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    uid = models.IntegerField()  # Reference to user in user_service
+    user_id = models.IntegerField()  # Reference to user in user_service
 
     class Meta:
         abstract = True
@@ -124,10 +124,10 @@ class UserProgress(BaseModel):
 
     class Meta:
         db_table = "user_progress"
-        unique_together = [["uid", "syllabus", "lesson", "exercise"]]
+        unique_together = [["user_id", "syllabus", "lesson", "exercise"]]
 
     def __str__(self):
-        return f"User {self.uid} - {self.syllabus.title}"
+        return f"User {self.user_id} - {self.syllabus.title}"
 
 
 class UserLearningPath(BaseModel):
@@ -150,7 +150,7 @@ class UserLearningPath(BaseModel):
 
     class Meta:
         db_table = "user_learning_paths"
-        unique_together = [["uid", "language"]]
+        unique_together = [["user_id", "language"]]
 
     def __str__(self):
-        return f"User {self.uid} - {self.language.language_id}"
+        return f"User {self.user_id} - {self.language.language_id}"

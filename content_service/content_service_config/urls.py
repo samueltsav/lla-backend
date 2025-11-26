@@ -14,7 +14,6 @@ urlpatterns = [
     path("health", HealthCheckView.as_view()),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/schema/docs/", SpectacularSwaggerView.as_view(url_name="schema")),
-    
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

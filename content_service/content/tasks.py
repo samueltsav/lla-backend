@@ -74,7 +74,7 @@ def generate_syllabus(
     level: str,
     total_lessons: int = 20,
     duration_weeks: int = 12,
-    uid: Optional[str] = None,
+    user_id: Optional[str] = None,
 ):
     try:
         payload = {
@@ -84,7 +84,7 @@ def generate_syllabus(
                 "level": level,
                 "total_lessons": total_lessons,
                 "duration_weeks": duration_weeks,
-                "uid": uid,
+                "user_id": user_id,
                 "timestamp": datetime.now,
             },
         }
@@ -104,7 +104,7 @@ def generate_syllabus(
             "assessment_methods": result.get("assessment_methods", []),
             "resources": result.get("resources", []),
             "created_at": datetime.now.isoformat(),
-            "uid": uid,
+            "user_id": user_id,
         }
 
         logger.info(f"Successfully generated syllabus: {syllabus_data['syllabus_id']}")
@@ -125,7 +125,7 @@ def generate_lesson(
     module_id: str,
     topic: str,
     level: str,
-    uid: Optional[str] = None,
+    user_id: Optional[str] = None,
 ):
     try:
         payload = {
@@ -135,7 +135,7 @@ def generate_lesson(
                 "module_id": module_id,
                 "topic": topic,
                 "level": level,
-                "uid": uid,
+                "user_id": user_id,
                 "timestamp": datetime.now,
             },
         }
@@ -160,7 +160,7 @@ def generate_lesson(
             "difficulty_score": result.get("difficulty_score", 1),
             "prerequisites": result.get("prerequisites", []),
             "created_at": datetime.now,
-            "uid": uid,
+            "user_id": user_id,
         }
 
         logger.info(f"Successfully generated lesson: {lesson_data['lesson_id']}")
@@ -181,7 +181,7 @@ def generate_exercises(
     exercise_types: List[str],
     level: str,
     count_per_type: int = 5,
-    uid: Optional[str] = None,
+    user_id: Optional[str] = None,
 ):
     try:
         payload = {
@@ -191,7 +191,7 @@ def generate_exercises(
                 "exercise_types": exercise_types,
                 "level": level,
                 "count_per_type": count_per_type,
-                "uid": uid,
+                "user_id": user_id,
                 "timestamp": datetime.now,
             },
         }
@@ -209,7 +209,7 @@ def generate_exercises(
             ),
             "estimated_completion_time": result.get("estimated_completion_time", 20),
             "created_at": datetime.now,
-            "uid": uid,
+            "user_id": user_id,
         }
 
         logger.info(
@@ -231,7 +231,7 @@ def generate_specific_exercise(
     exercise_type: str,
     content: str,
     level: str,
-    uid: Optional[str] = None,
+    user_id: Optional[str] = None,
 ):
     try:
         payload = {
@@ -241,7 +241,7 @@ def generate_specific_exercise(
                 "exercise_type": exercise_type,
                 "content": content,
                 "level": level,
-                "uid": uid,
+                "user_id": user_id,
                 "timestamp": datetime.now,
             },
         }
@@ -258,7 +258,7 @@ def generate_specific_exercise(
             "difficulty_score": result.get("difficulty_score", 1),
             "estimated_time": result.get("estimated_time", 5),
             "created_at": datetime.now,
-            "uid": uid,
+            "user_id": user_id,
         }
 
         logger.info(
@@ -276,25 +276,25 @@ def generate_specific_exercise(
 # User progress tracking tasks.
 @app.task(bind=True, max_retries=MAX_RETRIES, default_retry_delay=RETRY_BACKOFF)
 def analyze_user_progress(
-    self, uid: str, course_id: str, activity_data: Dict[str, Any]
+    self, user_id: str, course_id: str, activity_data: Dict[str, Any]
 ):
     try:
         payload = {
             "task": "analyze_progress",
             "parameters": {
-                "uid": uid,
+                "user_id": user_id,
                 "course_id": course_id,
                 "activity_data": activity_data,
                 "timestamp": datetime.now,
             },
         }
 
-        logger.info(f"Analyzing progress for user: {uid}")
+        logger.info(f"Analyzing progress for user: {user_id}")
         result = make_ai_request("/api/v1/analyze/progress", payload)
 
         progress_data = {
             "analysis_id": result.get("analysis_id"),
-            "uid": uid,
+            "user_id": user_id,
             "course_id": course_id,
             "overall_progress": result.get("overall_progress", 0),  # percentage
             "strengths": result.get("strengths", []),
@@ -320,7 +320,7 @@ def analyze_user_progress(
 @app.task(bind=True, max_retries=MAX_RETRIES, default_retry_delay=RETRY_BACKOFF)
 def update_learning_progress(
     self,
-    uid: str,
+    user_id: str,
     lesson_id: str,
     exercise_results: Dict[str, Any],
     time_spent: int,
@@ -329,7 +329,7 @@ def update_learning_progress(
         payload = {
             "task": "update_progress",
             "parameters": {
-                "uid": uid,
+                "user_id": user_id,
                 "lesson_id": lesson_id,
                 "exercise_results": exercise_results,
                 "time_spent": time_spent,
@@ -337,12 +337,12 @@ def update_learning_progress(
             },
         }
 
-        logger.info(f"Updating progress for user {uid}, lesson {lesson_id}")
+        logger.info(f"Updating progress for user {user_id}, lesson {lesson_id}")
         result = make_ai_request("/api/v1/update/progress", payload)
 
         update_data = {
             "update_id": result.get("update_id"),
-            "uid": uid,
+            "user_id": user_id,
             "lesson_id": lesson_id,
             "progress_delta": result.get("progress_delta", 0),
             "new_progress_level": result.get("new_progress_level", 0),
@@ -397,7 +397,7 @@ def generate_content_analytics(self, content_id):
 @app.task(bind=True, name="content.tasks.generate_learning_path")
 def generate_learning_path(
     self,
-    uid: str,
+    user_id: str,
     language: str,
     current_level: str,
     target_level: str,
@@ -408,7 +408,7 @@ def generate_learning_path(
         payload = {
             "task": "generate_learning_path",
             "parameters": {
-                "uid": uid,
+                "user_id": user_id,
                 "language": language,
                 "current_level": current_level,
                 "target_level": target_level,
@@ -418,12 +418,12 @@ def generate_learning_path(
             },
         }
 
-        logger.info(f"Generating learning path for user: {uid}")
+        logger.info(f"Generating learning path for user: {user_id}")
         result = make_ai_request("/api/v1/generate/learning_path", payload)
 
         path_data = {
             "learning_path_id": result.get("learning_path_id"),
-            "uid": uid,
+            "user_id": user_id,
             "language": language,
             "current_level": current_level,
             "target_level": target_level,
@@ -452,7 +452,7 @@ def generate_learning_path(
 def adapt_learning_path(
     self,
     learning_path_id: str,
-    uid: str,
+    user_id: str,
     progress_data: Dict[str, Any],
     feedback: Dict[str, Any],
 ):
@@ -461,7 +461,7 @@ def adapt_learning_path(
             "task": "adapt_learning_path",
             "parameters": {
                 "learning_path_id": learning_path_id,
-                "uid": uid,
+                "user_id": user_id,
                 "progress_data": progress_data,
                 "feedback": feedback,
                 "timestamp": datetime.now,
@@ -474,7 +474,7 @@ def adapt_learning_path(
         adaptation_data = {
             "adaptation_id": result.get("adaptation_id"),
             "learning_path_id": learning_path_id,
-            "uid": uid,
+            "user_id": user_id,
             "changes_made": result.get("changes_made", []),
             "reasoning": result.get("reasoning"),
             "updated_milestones": result.get("updated_milestones", []),
@@ -497,11 +497,11 @@ def adapt_learning_path(
 
 # Workflow tasks
 @app.task
-def create_complete_course_workflow(language: str, level: str, uid: str):
+def create_complete_course_workflow(language: str, level: str, user_id: str):
     try:
         # Step 1: Generate syllabus
         syllabus_result = generate_syllabus.delay(
-            language=language, level=level, uid=uid
+            language=language, level=level, user_id=user_id
         ).get()
 
         # Step 2: Generate lessons for each module
@@ -513,7 +513,7 @@ def create_complete_course_workflow(language: str, level: str, uid: str):
                     module_id=module["module_id"],
                     topic=topic,
                     level=level,
-                    uid=uid,
+                    user_id=user_id,
                 )
                 lesson_tasks.append(lesson_task)
 
@@ -529,7 +529,7 @@ def create_complete_course_workflow(language: str, level: str, uid: str):
                 lesson_id=lesson["lesson_id"],
                 exercise_types=exercise_types,
                 level=level,
-                uid=uid,
+                user_id=user_id,
             )
             exercise_tasks.append(exercise_task)
 

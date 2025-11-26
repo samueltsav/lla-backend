@@ -1,9 +1,6 @@
 import os
 import sys
-from datetime import timedelta
-from user_service_config.third_party.axes import *
 from user_service_config.third_party.celery import *
-from user_service_config.third_party.djoser import *
 from user_service_config.third_party.spectacular import *
 from user_service_config.third_party.cache import *
 from user_service_config.env import BASE_DIR, env
@@ -15,6 +12,14 @@ env.read_env(os.path.join(BASE_DIR, ".env"))
 sys.path.append("/app")
 
 DJANGO_ENV = env("DJANGO_SETTINGS_MODULE")
+
+# Clerk Cofiguration
+CLERK_API_KEY = env("CLERK_API_KEY")
+CLERK_WEBHOOK_SECRET = env("CLERK_WEBHOOK_SECRET")
+CLERK_FRONTEND_API_URL = env("CLERK_FRONTEND_API_URL", default="https://api.clerk.com")
+CLERK_API_URL = env("CLERK_API_URL", default="https://api.clerk.com")
+CLERK_AUDIENCE = env.list("CLERK_AUDIENCE", default=[])
+CLERK_ISSUER = env("CLERK_ISSUER", default=CLERK_FRONTEND_API_URL)
 
 DEBUG = env.bool("DEBUG", default=True)
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
@@ -45,12 +50,8 @@ INSTALLED_APPS = [
     "django.contrib.sites",
     # Third-party librararies
     "rest_framework",
-    "rest_framework_simplejwt",
-    "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "drf_spectacular",
-    "djoser",
-    "axes",
     # local apps
     "users",
     "dashboard",
@@ -69,7 +70,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "corsheaders.middleware.CorsMiddleware",
-    "axes.middleware.AxesMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 
@@ -199,7 +199,6 @@ CORS_ALLOW_CREDENTIALS = True
 
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
-    "axes.backends.AxesStandaloneBackend",
 ]
 
 REST_FRAMEWORK = {
@@ -207,42 +206,14 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "users.auth.ClerkJWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
-# Simple JWT Settings for JWT Authentication
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-    "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": True,
-    "UPDATE_LAST_LOGIN": True,
-    "ALGORITHM": JWT_ALGORITHM,
-    "SIGNING_KEY": JWT_KEY,
-    "VERIFYING_KEY": "",
-    "AUDIENCE": None,
-    "ISSUER": None,
-    "JSON_ENCODER": None,
-    "JWK_URL": None,
-    "LEEWAY": 0,
-    "AUTH_HEADER_TYPES": ("Bearer",),
-    "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
-    "USER_ID_FIELD": "uid",
-    "USER_ID_CLAIM": "uid",
-    "USER_AUTHENTICATION_RULE": "rest_framework_simplejwt.authentication.default_user_authentication_rule",
-    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
-    "TOKEN_TYPE_CLAIM": "token_type",
-    "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
-    "JTI_CLAIM": "jti",
-    "SLIDING_TOKEN_REFRESH_EXP_CLAIM": "refresh_exp",
-    "SLIDING_TOKEN_LIFETIME": timedelta(days=1),
-    "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=7),
-    "TOKEN_OBTAIN_SERIALIZER": "users.serializers.MyTokenCreateSerializer",
-    "TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSerializer",
-    "TOKEN_VERIFY_SERIALIZER": "rest_framework_simplejwt.serializers.TokenVerifySerializer",
-    "TOKEN_BLACKLIST_SERIALIZER": "rest_framework_simplejwt.serializers.TokenBlacklistSerializer",
-    "SLIDING_TOKEN_OBTAIN_SERIALIZER": "rest_framework_simplejwt.serializers.TokenObtainSlidingSerializer",
-    "SLIDING_TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSlidingSerializer",
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    }
 }
