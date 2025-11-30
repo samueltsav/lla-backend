@@ -1,17 +1,15 @@
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseBadRequest
 from rest_framework import status
 from django.contrib.auth import get_user_model
 from django.views import View
 from user_service_config.django import base
 from .serializers import UserSerializer
 import logging
-import json
-from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from .clerk_sdk import ClerkSDK
+from svix.webhooks import Webhook
 
 
 logger = logging.getLogger(__name__)
@@ -19,75 +17,77 @@ User = get_user_model()
 
 JWT_KEY = base.JWT_KEY
 
-
+# Clerk Webhook
 @csrf_exempt
 def clerk_webhook(request):
-    # Read raw body and signature
-    body = request.body
-    signature = request.headers.get("Clerk-Signature") or request.META.get(
-        "HTTP_CLERK_SIGNATURE"
-    )
+    if request.method != "POST":
+        return HttpResponseBadRequest("Invalid request")
 
-    sdk = ClerkSDK()
-    if not sdk.verify_webhook_signature(body, signature):
-        return HttpResponse("Invalid signature", status=400)
+    wh = Webhook(base.CLERK_WEBHOOK_SECRET)
+
+    # MUST use raw bytes
+    payload = request.body
+
+    # MUST convert headers to plain dict
+    headers = {k: v for k, v in request.headers.items()}
 
     try:
-        payload = json.loads(body)
-    except Exception:
-        return HttpResponse("Invalid payload", status=400)
+        event = wh.verify(payload, headers)
+    except Exception as e:
+        print("Webhook signature verification failed:", str(e))
+        return HttpResponseBadRequest("Invalid signature")
 
-    event_type = payload.get("type") or payload.get("event")
-    data = payload.get("data") or payload.get("object") or {}
+    # ---- Parse Event ----
+    event_type = event["type"]
+    data = event["data"]
 
-    # Normalize user object depending on Clerk payload shape
-    user_data = data.get("user") if isinstance(data.get("user"), dict) else data
-    clerk_id = user_data.get("id") or user_data.get("user_id")
+    if event_type == "user.created":
+        id = data["id"]
+        email = data.get("email_addresses", [{}])[0].get("email_address", "")
+        first_name = data.get("first_name", "")
+        last_name = data.get("last_name", "")
+        image_url = data.get("image_url", "")
 
-    if not clerk_id:
-        return HttpResponse("No user id", status=400)
-
-    # Handle events
-    if event_type in ("user.created", "users.created"):
-        # create or update
-        emails = user_data.get("email_addresses") or []
-        email = emails[0].get("email_address") if emails else ""
         User.objects.update_or_create(
-            id=clerk_id,
+            id=id,
             defaults={
                 "email": email,
-                "first_name": user_data.get("first_name", ""),
-                "last_name": user_data.get("last_name", ""),
-                "is_active": not user_data.get("disabled", False),
+                "first_name": first_name,
+                "last_name": last_name,
+                "photo_url": image_url,
             },
         )
-    elif event_type in ("user.updated", "users.updated"):
+
+    elif event_type == "user.updated":
+        id = data["id"]
+        email = data.get("email_addresses", [{}])[0].get("email_address", "")
+        first_name = data.get("first_name", "")
+        last_name = data.get("last_name", "")
+        image_url = data.get("image_url", "")
+
+        User.objects.update_or_create(
+            id=id,
+            defaults={
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+                "photo_url": image_url,
+            },
+        )
+            
+    elif event_type == "user.deleted":
+        id = data["id"]
+
         try:
-            user = User.objects.get(id=clerk_id)
-            emails = user_data.get("email_addresses") or []
-            email = emails[0].get("email_address") if emails else user.email
-            user.email = email
-            user.first_name = user_data.get("first_name", user.first_name)
-            user.last_name = user_data.get("last_name", user.last_name)
-            user.is_active = not user_data.get("disabled", False)
-            user.save()
-        except User.DoesNotExist:
-            # create if missing
-            User.objects.create(
-                id=clerk_id,
-                email=(user_data.get("email") or ""),
-                first_name=user_data.get("first_name", ""),
-                last_name=user_data.get("last_name", ""),
-                is_active=not user_data.get("disabled", False),
-            )
-    elif event_type in ("user.deleted", "users.deleted"):
-        User.objects.filter(id=clerk_id).delete()
+            User.objects.filter(id=id).delete()
+            print(f"User {id} deleted successfully.")
+        except Exception as e:
+            print(f"Error deleting user {id}: {str(e)}")
 
-    # Can be extended to other events (email_verified, phone_updated, etc.)
-
-    return HttpResponse("OK")
+    return JsonResponse({"status": "ok"})
 
 
+# Service-to-service views
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def validate_service_token(request):

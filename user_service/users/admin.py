@@ -7,17 +7,26 @@ from .models import User
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     fieldsets = (
-        (None, {'fields': ('id', 'password')}),
-        (_('Personal info'), {'fields': ('first_name', 'last_name', 'email')}),
-        (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
-        (_('Important dates'), {'fields': ('last_login', 'date_joined')}),
+        (None, {"fields": ("id", "password")}),
+        (_("Personal info"), {"fields": ("first_name", "last_name", "email")}),
+        (_("Permissions"), {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
+        (_("Important dates"), {"fields": ("last_login", "date_joined")}),
     )
     add_fieldsets = (
         (None, {
-            'classes': ('wide',),
-            'fields': ('id', 'password1', 'password2'),
+            "classes": ("wide",),
+            "fields": ("id", "password1", "password2"),
         }),
     )
-    list_display = ('id', 'email', 'first_name', 'last_name', 'is_staff')
-    search_fields = ('id', 'email', 'first_name', 'last_name')
-    ordering = ('email',)
+    list_display = (
+        "id",
+        "email",
+        "first_name",
+        "last_name",
+        "is_active",
+        "is_staff",
+        "is_superuser",
+        "date_joined",
+    )
+    search_fields = ("id", "email", "first_name", "last_name")
+    ordering = ("email",)

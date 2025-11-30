@@ -14,12 +14,11 @@ sys.path.append("/app")
 DJANGO_ENV = env("DJANGO_SETTINGS_MODULE")
 
 # Clerk Cofiguration
-CLERK_API_KEY = env("CLERK_API_KEY")
+CLERK_PUBLISHABLE_KEY = env("CLERK_PUBLISHABLE_KEY")
 CLERK_WEBHOOK_SECRET = env("CLERK_WEBHOOK_SECRET")
 CLERK_FRONTEND_API_URL = env("CLERK_FRONTEND_API_URL", default="https://api.clerk.com")
 CLERK_API_URL = env("CLERK_API_URL", default="https://api.clerk.com")
 CLERK_AUDIENCE = env.list("CLERK_AUDIENCE", default=[])
-CLERK_ISSUER = env("CLERK_ISSUER", default=CLERK_FRONTEND_API_URL)
 
 DEBUG = env.bool("DEBUG", default=True)
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
