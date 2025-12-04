@@ -131,21 +131,6 @@ services:
     networks:
       - backend_network
 
-#  test-service:
-#    container_name: test-service
-#    build:
-#      context: ./test_service
-#    depends_on:
-#      user-service:
-#        condition: service_healthy
-#      content-service:
-#        condition: service_healthy
-#    environment:
-#      - USER_SERVICE_URL=http://user-service:8000
-#      - CONTENT_SERVICE_URL=http://content-service:8000
-#    networks:
-#      - backend_network
-
 volumes:
   rabbitmq_data:
   redis_data:

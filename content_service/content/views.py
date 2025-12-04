@@ -11,11 +11,20 @@ from .serializers import (
     UserProgressSerializer,
     UserLearningPathSerializer,
 )
-from .permissions import IsAdminUser, IsOwnerOrAdmin
-from .authentication import JWTAuthentication
-from django.http import JsonResponse
+from .auth import JWTAuthentication
+
 from django.views import View
 
+from django.http import JsonResponse, HttpResponseBadRequest
+from django.contrib.auth import get_user_model
+from content_service_config.django import base
+import logging
+from django.views.decorators.csrf import csrf_exempt
+from svix.webhooks import Webhook
+
+
+logger = logging.getLogger(__name__)
+User = get_user_model()
 
 class LanguageViewSet(viewsets.ModelViewSet):
     queryset = Language.objects.filter(is_active=True)
@@ -24,13 +33,13 @@ class LanguageViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ["create", "update", "partial_update", "destroy"]:
-            permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+            permission_classes = [permissions.IsAuthenticated]
         else:
             permission_classes = [permissions.IsAuthenticated]
         return [permission() for permission in permission_classes]
 
     def perform_create(self, serializer):
-        serializer.save(user_id=self.request.user.id)
+        serializer.save(id=self.request.user.id)
 
 
 class SyllabusViewSet(viewsets.ModelViewSet):
@@ -42,10 +51,10 @@ class SyllabusViewSet(viewsets.ModelViewSet):
         # Users can see their own syllabi and public ones
         if hasattr(self.request.user, "is_staff") and self.request.user.is_staff:
             return Syllabus.objects.all()
-        return Syllabus.objects.filter(user_id=self.request.user.id)
+        return Syllabus.objects.filter(id=self.request.user.id)
 
     def perform_create(self, serializer):
-        serializer.save(user_id=self.request.user.id)
+        serializer.save(id=self.request.user.id)
 
     @action(detail=True, methods=["get"])
     def lessons(self, request, pk=None):
@@ -63,7 +72,7 @@ class SyllabusViewSet(viewsets.ModelViewSet):
         syllabus = get_object_or_404(Syllabus, pk=pk)
 
         # Check permissions
-        if syllabus.user_id != request.user.id and not self.request.user.is_staff:
+        if syllabus.id != request.user.id and not self.request.user.is_staff:
             return Response(
                 {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
             )
@@ -79,18 +88,18 @@ class SyllabusViewSet(viewsets.ModelViewSet):
 class LessonViewSet(viewsets.ModelViewSet):
     serializer_class = LessonSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Lesson.objects.filter(user_id=self.request.user.id)
+        return Lesson.objects.filter(id=self.request.user.id)
 
     def perform_create(self, serializer):
-        serializer.save(user_id=self.request.user.id)
+        serializer.save(id=self.request.user.id)
 
     @action(detail=True, methods=["get"])
     def exercises(self, request, pk=None):
         """Get all exercises for a lesson"""
-        lesson = get_object_or_404(Lesson, pk=pk, user_id=request.user.id)
+        lesson = get_object_or_404(Lesson, pk=pk, id=request.user.id)
         exercises = lesson.exercises.all()
         serializer = ExerciseSerializer(exercises, many=True)
         return Response(serializer.data)
@@ -99,13 +108,13 @@ class LessonViewSet(viewsets.ModelViewSet):
 class ExerciseViewSet(viewsets.ModelViewSet):
     serializer_class = ExerciseSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Exercise.objects.filter(user_id=self.request.user.id)
+        return Exercise.objects.filter(id=self.request.user.id)
 
     def perform_create(self, serializer):
-        serializer.save(user_id=self.request.user.id)
+        serializer.save(id=self.request.user.id)
 
 
 class UserProgressViewSet(viewsets.ModelViewSet):
@@ -114,10 +123,10 @@ class UserProgressViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return UserProgress.objects.filter(user_id=self.request.user.id)
+        return UserProgress.objects.filter(id=self.request.user.id)
 
     def perform_create(self, serializer):
-        serializer.save(user_id=self.request.user.id)
+        serializer.save(id=self.request.user.id)
 
     @action(detail=False, methods=["get"])
     def dashboard(self, request):
@@ -138,7 +147,7 @@ class UserProgressViewSet(viewsets.ModelViewSet):
                 "completed_lessons": completed_lessons,
                 "completed_exercises": completed_exercises,
                 "total_points": total_points,
-                "user_id": request.user.id,
+                "id": request.user.id,
             }
         )
 
@@ -149,10 +158,80 @@ class UserLearningPathViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return UserLearningPath.objects.filter(user_id=self.request.user.id)
+        return UserLearningPath.objects.filter(id=self.request.user.id)
 
     def perform_create(self, serializer):
-        serializer.save(user_id=self.request.user.id)
+        serializer.save(id=self.request.user.id)
+
+
+# Clerk Webhook view
+@csrf_exempt
+def clerk_webhook(request):
+    if request.method != "POST":
+        return HttpResponseBadRequest("Invalid request")
+
+    wh = Webhook(base.CLERK_WEBHOOK_SECRET)
+
+    # MUST use raw bytes
+    payload = request.body
+
+    # MUST convert headers to plain dict
+    headers = {k: v for k, v in request.headers.items()}
+
+    try:
+        event = wh.verify(payload, headers)
+    except Exception as e:
+        print("Webhook signature verification failed:", str(e))
+        return HttpResponseBadRequest("Invalid signature")
+
+    # ---- Parse Event ----
+    event_type = event["type"]
+    data = event["data"]
+
+    if event_type == "user.created":
+        id = data["id"]
+        email = data.get("email_addresses", [{}])[0].get("email_address", "")
+        first_name = data.get("first_name", "")
+        last_name = data.get("last_name", "")
+        image_url = data.get("image_url", "")
+
+        User.objects.update_or_create(
+            id=id,
+            defaults={
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+                "photo_url": image_url,
+            },
+        )
+
+    elif event_type == "user.updated":
+        id = data["id"]
+        email = data.get("email_addresses", [{}])[0].get("email_address", "")
+        first_name = data.get("first_name", "")
+        last_name = data.get("last_name", "")
+        image_url = data.get("image_url", "")
+
+        User.objects.update_or_create(
+            id=id,
+            defaults={
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+                "photo_url": image_url,
+            },
+        )
+
+    elif event_type == "user.deleted":
+        id = data["id"]
+
+        try:
+            User.objects.filter(id=id).delete()
+            print(f"User {id} deleted successfully.")
+        except Exception as e:
+            print(f"Error deleting user {id}: {str(e)}")
+
+    return JsonResponse({"status": "ok"})
 
 
 # Health Check
