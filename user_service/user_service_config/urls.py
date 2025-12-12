@@ -11,8 +11,8 @@ from users.views import HealthCheckView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("auth/", include("dashboard.urls")),
     path("auth/", include("users.urls")),
+    path("auth/", include("dashboard.urls")),
     path("auth/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("auth/schema/docs/", SpectacularSwaggerView.as_view(url_name="schema")),
     path("health", HealthCheckView.as_view()),

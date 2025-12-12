@@ -11,6 +11,8 @@ env.read_env(os.path.join(BASE_DIR, ".env"))
 
 sys.path.append("/app")
 
+SECRET_KEY = env("DJANGO_SECRET_KEY")
+SERVICE_INTERNAL_TOKEN = env("SERVICE_INTERNAL_TOKEN")
 
 DJANGO_ENV = env("DJANGO_SETTINGS_MODULE")
 
@@ -29,6 +31,7 @@ if DJANGO_ENV == "user_service_config.django.dev":
     )
     CLERK_API_URL = env("CLERK_API_URL", default="https://api.clerk.com")
     CLERK_AUDIENCE = env.list("CLERK_AUDIENCE", default=[])
+    CLERK_SECRET_KEY = env("CLERK_SECRET_KEY")
 else:
     CLERK_PUBLISHABLE_KEY = env("CLERK_PUBLISHABLE_KEY")
     CLERK_WEBHOOK_SECRET = env("CLERK_WEBHOOK_SECRET")
@@ -37,6 +40,8 @@ else:
     )
     CLERK_API_URL = env("CLERK_API_URL", default="https://api.clerk.com")
     CLERK_AUDIENCE = env.list("CLERK_AUDIENCE", default=[])
+    CLERK_SECRET_KEY = env("CLERK_SECRET_KEY")
+
 
 # Application definition
 INSTALLED_APPS = [
@@ -65,7 +70,6 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django_otp.middleware.OTPMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -191,14 +195,8 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "users.auth.ClerkJWTAuthentication",
+        "users.auth.ClerkAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-}
-
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-    }
 }

@@ -1,19 +1,23 @@
 from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
+from django.core.exceptions import ValidationError
 
 
-class BaseModel(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    user_id = models.IntegerField()  # Reference to user in user_service
+
+# ABSTRACT USER MIRROR MODEL
+class UserMirror(models.Model):
+    user_id = models.CharField(max_length=255, db_index=True)
+    email = models.EmailField(max_length=255, blank=True, null=True, db_index=True)
 
     class Meta:
         abstract = True
 
+    def __str__(self):
+        return self.email or self.user_id
 
-class Language(BaseModel):
+
+# CONTENT MODELS
+class Language(models.Model):
     LANGUAGE_CHOICES = [
         ("hausa", "Hausa"),
         ("yoruba", "Yoruba"),
@@ -21,136 +25,169 @@ class Language(BaseModel):
         ("swahili", "Swahili"),
     ]
 
-    name = models.CharField(max_length=50, choices=LANGUAGE_CHOICES, unique=True)
-    language_id = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
+    language_id = models.CharField(max_length=50, primary_key=True)
+    language_name = models.CharField(max_length=100, choices=LANGUAGE_CHOICES, unique=True)
+    iso_code = models.CharField(max_length=10)
+    flag_emoji = models.CharField(max_length=10)
     is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "languages"
-
-    def __str__(self):
-        return self.display_name
+        ordering = ["-is_active", "updated_at"]
 
 
-class Syllabus(BaseModel):
-    language = models.ForeignKey(
-        Language, on_delete=models.CASCADE, related_name="syllabi"
-    )
+class Syllabus(models.Model):
+    LEVEL_CHOICES = [
+        ("beginner", "Beginner"),
+        ("intermediate", "Intermediate"),
+        ("advanced", "Advanced"),
+    ]
+
+    syllabus_id = models.CharField(max_length=50, primary_key=True)
+    language = models.ForeignKey(Language, on_delete=models.PROTECT, db_index=True)
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES)
     title = models.CharField(max_length=200)
-    syllabus_id = models.UUIDField(default=uuid.uuid4, editable=False)
     description = models.TextField()
-    level = models.CharField(
-        max_length=20,
-        choices=[
-            ("beginner", "Beginner"),
-            ("intermediate", "Intermediate"),
-            ("advanced", "Advanced"),
-        ],
-    )
-    total_lessons = models.IntegerField(default=0)
-    duration_weeks = models.IntegerField(default=1)
+    estimated_hours = models.IntegerField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "syllabi"
-        verbose_name_plural = "syllabi"
-
-    def __str__(self):
-        return f"{self.language.display_name} - {self.title}"
+        verbose_name_plural = "Syllabi"
+        ordering = ["-is_active", "created_at"]
 
 
-class Lesson(BaseModel):
-    syllabus = models.ForeignKey(
-        Syllabus, on_delete=models.CASCADE, related_name="lessons"
-    )
-    topic = models.CharField(max_length=200)
-    lessson_id = models.UUIDField(default=uuid.uuid4, editable=False)
+class Lesson(models.Model):
+    lesson_id = models.CharField(max_length=50, primary_key=True)
+    syllabus = models.ForeignKey(Syllabus, on_delete=models.PROTECT, db_index=True)
+    lesson_number = models.IntegerField()
+    title = models.CharField(max_length=200)
     description = models.TextField()
-    content = models.JSONField(default=dict)  # AI-generated lesson content
-    order = models.IntegerField(default=0)
-    duration_minutes = models.IntegerField(default=30)
+    estimated_time_minutes = models.IntegerField()
+    learning_objectives = models.JSONField(default=list)
+    audio_resources = models.JSONField(default=dict, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "lessons"
-        ordering = ["order"]
+        constraints = [
+            models.UniqueConstraint(fields=["syllabus", "lesson_number"], name="unique_syllabus_lesson_number")
+        ]
+        ordering = ["syllabus", "lesson_number"]
 
-    def __str__(self):
-        return f"{self.syllabus.title} - {self.title}"
 
-
-class Exercise(BaseModel):
-    """Exercises for lessons"""
-
-    EXERCISE_TYPES = [
-        ("text_to_speech", "Text-To-Speech"),
-        ("audio", "Audio Exercise"),
-        ("flashcard", "Flashcard"),
-        ("multiple_choice", "Multiple Choice"),
-        ("fill_blank", "Fill-in-the-Blank"),
+# USER-SPECIFIC MODELS
+class Exercise(UserMirror):
+    TYPE_CHOICES = [
+        ("image-description", "Image Description"),
+        ("multiple-choice", "Multiple Choice"),
         ("translation", "Translation"),
+        ("fill-in-the-blank", "Fill in the Blank"),
+        ("matching-pairs", "Matching Pairs"),
     ]
 
-    lesson = models.ForeignKey(
-        Lesson, on_delete=models.CASCADE, related_name="exercises"
-    )
-    topic = models.CharField(max_length=200)
-    exercise_type = models.CharField(max_length=20, choices=EXERCISE_TYPES)
-    content = models.JSONField(default=dict)  # Exercise data
-    audio_url = models.URLField(blank=True, null=True)
-    order = models.IntegerField(default=0)
-    points = models.IntegerField(default=10)
+    DIFFICULTY_CHOICES = [
+        ("beginner", "Beginner"),
+        ("intermediate", "Intermediate"),
+        ("advanced", "Advanced"),
+    ]
+
+    exercise_id = models.CharField(max_length=50, primary_key=True)
+    lesson = models.ForeignKey(Lesson, on_delete=models.PROTECT, db_index=True)
+    exercise_number = models.IntegerField()
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    type = models.CharField(max_length=30, choices=TYPE_CHOICES)
+    difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES)
+    estimated_time_minutes = models.IntegerField()
+    max_points = models.IntegerField()
+    content = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "exercises"
-        ordering = ["order"]
-
-    def __str__(self):
-        return f"{self.lesson.topic} - {self.topic}"
-
-
-class UserProgress(BaseModel):
-    syllabus = models.ForeignKey(Syllabus, on_delete=models.CASCADE)
-    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, null=True, blank=True)
-    exercise = models.ForeignKey(
-        Exercise, on_delete=models.CASCADE, null=True, blank=True
-    )
-    completed = models.BooleanField(default=False)
-    score = models.IntegerField(
-        default=0, validators=[MinValueValidator(0), MaxValueValidator(100)]
-    )
-    completion_date = models.DateTimeField(null=True, blank=True)
-    time_spent_seconds = models.IntegerField(default=0)
-
-    class Meta:
-        db_table = "user_progress"
-        unique_together = [["user_id", "syllabus", "lesson", "exercise"]]
-
-    def __str__(self):
-        return f"User {self.user_id} - {self.syllabus.title}"
+        constraints = [
+            models.UniqueConstraint(fields=["user_id", "lesson", "exercise_number"], name="unique_user_lesson_exercise_number")
+        ]
+        ordering = ["user_id", "lesson", "exercise_number"]
 
 
-class UserLearningPath(BaseModel):
-    language = models.ForeignKey(Language, on_delete=models.CASCADE)
-    current_syllabus = models.ForeignKey(
-        Syllabus, on_delete=models.SET_NULL, null=True, blank=True
-    )
-    proficiency_level = models.CharField(
-        max_length=20,
-        choices=[
-            ("beginner", "Beginner"),
-            ("intermediate", "Intermediate"),
-            ("advanced", "Advanced"),
-        ],
-        default="beginner",
-    )
-    daily_commitment_minutes = models.IntegerField(default=30)
-    last_activity_date = models.DateField(auto_now=True)
-    total_points = models.IntegerField(default=0)
+class UserLessonProgress(UserMirror):
+    STATUS_CHOICES = [
+        ("not-started", "Not Started"),
+        ("in-progress", "In Progress"),
+        ("completed", "Completed"),
+    ]
+    progress_id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    lesson = models.ForeignKey(Lesson, on_delete=models.PROTECT, db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="not-started")
+    completed_exercises = models.IntegerField(default=0)
+    points_earned = models.IntegerField(default=0)
+    percent_complete = models.IntegerField(default=0)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    last_accessed_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "user_learning_paths"
-        unique_together = [["user_id", "language"]]
+        db_table = "lesson_progress"
+        constraints = [
+            models.UniqueConstraint(fields=["user_id", "lesson"], name="unique_user_lesson")
+        ]
+        ordering = ["user_id", "status", "last_accessed_at"]
 
-    def __str__(self):
-        return f"User {self.user_id} - {self.language.language_id}"
+
+class ExerciseAttempt(UserMirror):
+    attempt_id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, db_index=True)
+    score = models.IntegerField()
+    max_score = models.IntegerField()
+    points_earned = models.IntegerField()
+    time_spent_seconds = models.IntegerField()
+    answers = models.JSONField()
+    results = models.JSONField()
+    started_at = models.DateTimeField()
+    submitted_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "exercise_attempts"
+        ordering = ["user_id", "-submitted_at"]
+
+    def clean(self):
+        """Ensure exercise.user_id matches attempt.user_id."""
+        if self.exercise.user_id != self.user_id:
+            raise ValidationError("Inconsistent user_id!")
+
+
+# OTHER CONTENT MODELS
+class CardType(models.Model):
+    """Registry of available exercise card types"""
+
+    TYPE_CHOICES = [
+        ("image-description", "Image Description"),
+        ("multiple-choice", "Multiple Choice"),
+        ("translation", "Translation"),
+        ("fill-in-the-blank", "Fill in the Blank"),
+        ("matching-pairs", "Matching Pairs"),
+    ]
+
+    type_id = models.CharField(max_length=50, primary_key=True, choices=TYPE_CHOICES)
+    type_name = models.CharField(max_length=100)
+    description = models.TextField()
+    supports_audio = models.BooleanField(default=False)
+    supports_images = models.BooleanField(default=False)
+    supports_hints = models.BooleanField(default=False)
+    frontend_component = models.CharField(max_length=100)
+    fields_schema = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "card_types"
+        ordering = ["type_name"]

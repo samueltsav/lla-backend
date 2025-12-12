@@ -2,236 +2,127 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from .models import Language, Syllabus, Lesson, Exercise, UserProgress, UserLearningPath
+from .models import Language, Syllabus, Lesson, Exercise, UserLessonProgress, ExerciseAttempt, CardType
 from .serializers import (
     LanguageSerializer,
     SyllabusSerializer,
     LessonSerializer,
     ExerciseSerializer,
-    UserProgressSerializer,
-    UserLearningPathSerializer,
+    UserLessonProgressSerializer,
+    ExerciseAttemptSerializer,
+    CardTypeSerializer,
 )
-from .auth import JWTAuthentication
-
+from .auth import ClerkAuthentication
+import logging  
 from django.views import View
+from django.http import JsonResponse
 
-from django.http import JsonResponse, HttpResponseBadRequest
-from django.contrib.auth import get_user_model
-from content_service_config.django import base
-import logging
-from django.views.decorators.csrf import csrf_exempt
-from svix.webhooks import Webhook
 
 
 logger = logging.getLogger(__name__)
-User = get_user_model()
+
 
 class LanguageViewSet(viewsets.ModelViewSet):
     queryset = Language.objects.filter(is_active=True)
     serializer_class = LanguageSerializer
-    authentication_classes = [JWTAuthentication]
-
-    def get_permissions(self):
-        if self.action in ["create", "update", "partial_update", "destroy"]:
-            permission_classes = [permissions.IsAuthenticated]
-        else:
-            permission_classes = [permissions.IsAuthenticated]
-        return [permission() for permission in permission_classes]
-
-    def perform_create(self, serializer):
-        serializer.save(id=self.request.user.id)
+    authentication_classes = [ClerkAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
 
 
 class SyllabusViewSet(viewsets.ModelViewSet):
     serializer_class = SyllabusSerializer
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [ClerkAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Users can see their own syllabi and public ones
-        if hasattr(self.request.user, "is_staff") and self.request.user.is_staff:
-            return Syllabus.objects.all()
-        return Syllabus.objects.filter(id=self.request.user.id)
-
-    def perform_create(self, serializer):
-        serializer.save(id=self.request.user.id)
+        return Syllabus.objects.filter(is_active=True)
 
     @action(detail=True, methods=["get"])
     def lessons(self, request, pk=None):
         syllabus = get_object_or_404(Syllabus, pk=pk)
-        lessons = syllabus.lessons.all()
+        lessons = syllabus.lesson_set.all()  # default reverse relation
         serializer = LessonSerializer(lessons, many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"])
     def generate_content(self, request, pk=None):
-        """
-        Trigger AI content generation for syllabus
-        Only admins or syllabus owners can do this
-        """
         syllabus = get_object_or_404(Syllabus, pk=pk)
-
-        # Check permissions
-        if syllabus.id != request.user.id and not self.request.user.is_staff:
-            return Response(
-                {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
-            )
-
-        # TODO: Implement AI content generation logic
-        # This would trigger your AI agents to generate lessons and exercises
-
+        # TODO: implement AI content generation
         return Response(
-            {"message": "Content generation started", "syllabus_id": str(syllabus.id)}
+            {"message": "Content generation started", "syllabus_id": str(syllabus.syllabus_id)}
         )
 
 
 class LessonViewSet(viewsets.ModelViewSet):
     serializer_class = LessonSerializer
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [ClerkAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Lesson.objects.filter(id=self.request.user.id)
-
-    def perform_create(self, serializer):
-        serializer.save(id=self.request.user.id)
+        return Lesson.objects.all()
 
     @action(detail=True, methods=["get"])
     def exercises(self, request, pk=None):
-        """Get all exercises for a lesson"""
-        lesson = get_object_or_404(Lesson, pk=pk, id=request.user.id)
-        exercises = lesson.exercises.all()
+        lesson = get_object_or_404(Lesson, pk=pk)
+        exercises = lesson.exercise_set.all()  # default reverse relation
         serializer = ExerciseSerializer(exercises, many=True)
         return Response(serializer.data)
 
 
 class ExerciseViewSet(viewsets.ModelViewSet):
     serializer_class = ExerciseSerializer
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [ClerkAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Exercise.objects.filter(id=self.request.user.id)
-
-    def perform_create(self, serializer):
-        serializer.save(id=self.request.user.id)
+        return Exercise.objects.all()
 
 
-class UserProgressViewSet(viewsets.ModelViewSet):
-    serializer_class = UserProgressSerializer
-    authentication_classes = [JWTAuthentication]
+class UserLessonProgressViewSet(viewsets.ModelViewSet):
+    serializer_class = UserLessonProgressSerializer
+    authentication_classes = [ClerkAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return UserProgress.objects.filter(id=self.request.user.id)
-
-    def perform_create(self, serializer):
-        serializer.save(id=self.request.user.id)
+        return UserLessonProgress.objects.filter(user_id=self.request.user.user_id)
 
     @action(detail=False, methods=["get"])
     def dashboard(self, request):
-        """Get user progress dashboard data"""
         user_progress = self.get_queryset()
-        completed_lessons = user_progress.filter(
-            lesson__isnull=False, completed=True
-        ).count()
-        completed_exercises = user_progress.filter(
-            exercise__isnull=False, completed=True
-        ).count()
-        total_points = sum(
-            progress.score for progress in user_progress if progress.completed
-        )
-
+        completed_lessons = user_progress.filter(status="completed").count()
+        total_points = sum(progress.points_earned for progress in user_progress)
         return Response(
             {
                 "completed_lessons": completed_lessons,
-                "completed_exercises": completed_exercises,
                 "total_points": total_points,
-                "id": request.user.id,
+                "user_id": request.user.user_id,
             }
         )
 
 
-class UserLearningPathViewSet(viewsets.ModelViewSet):
-    serializer_class = UserLearningPathSerializer
-    authentication_classes = [JWTAuthentication]
+class ExerciseAttemptViewSet(viewsets.ModelViewSet):
+    serializer_class = ExerciseAttemptSerializer
+    authentication_classes = [ClerkAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return UserLearningPath.objects.filter(id=self.request.user.id)
-
-    def perform_create(self, serializer):
-        serializer.save(id=self.request.user.id)
+        return ExerciseAttempt.objects.filter(user_id=self.request.user.user_id)
 
 
-# Clerk Webhook view
-@csrf_exempt
-def clerk_webhook(request):
-    if request.method != "POST":
-        return HttpResponseBadRequest("Invalid request")
+class IsAdminOrReadOnly(permissions.BasePermission):
+    """Allow read for all authenticated users; write only for admins."""
+    
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return request.user and request.user.is_authenticated
+        return request.user and request.user.is_staff
 
-    wh = Webhook(base.CLERK_WEBHOOK_SECRET)
 
-    # MUST use raw bytes
-    payload = request.body
-
-    # MUST convert headers to plain dict
-    headers = {k: v for k, v in request.headers.items()}
-
-    try:
-        event = wh.verify(payload, headers)
-    except Exception as e:
-        print("Webhook signature verification failed:", str(e))
-        return HttpResponseBadRequest("Invalid signature")
-
-    # ---- Parse Event ----
-    event_type = event["type"]
-    data = event["data"]
-
-    if event_type == "user.created":
-        id = data["id"]
-        email = data.get("email_addresses", [{}])[0].get("email_address", "")
-        first_name = data.get("first_name", "")
-        last_name = data.get("last_name", "")
-        image_url = data.get("image_url", "")
-
-        User.objects.update_or_create(
-            id=id,
-            defaults={
-                "email": email,
-                "first_name": first_name,
-                "last_name": last_name,
-                "photo_url": image_url,
-            },
-        )
-
-    elif event_type == "user.updated":
-        id = data["id"]
-        email = data.get("email_addresses", [{}])[0].get("email_address", "")
-        first_name = data.get("first_name", "")
-        last_name = data.get("last_name", "")
-        image_url = data.get("image_url", "")
-
-        User.objects.update_or_create(
-            id=id,
-            defaults={
-                "email": email,
-                "first_name": first_name,
-                "last_name": last_name,
-                "photo_url": image_url,
-            },
-        )
-
-    elif event_type == "user.deleted":
-        id = data["id"]
-
-        try:
-            User.objects.filter(id=id).delete()
-            print(f"User {id} deleted successfully.")
-        except Exception as e:
-            print(f"Error deleting user {id}: {str(e)}")
-
-    return JsonResponse({"status": "ok"})
+class CardTypeViewSet(viewsets.ModelViewSet):
+    queryset = CardType.objects.all()
+    serializer_class = CardTypeSerializer
+    authentication_classes = [ClerkAuthentication]
+    permission_classes = [IsAdminOrReadOnly]
 
 
 # Health Check

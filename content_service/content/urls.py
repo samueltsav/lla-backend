@@ -4,14 +4,13 @@ from . import views
 
 # Create router and register viewsets
 router = DefaultRouter()
-router.register(r"languages", views.LanguageViewSet)
+router.register(r"languages", views.LanguageViewSet, basename="language")
 router.register(r"syllabi", views.SyllabusViewSet, basename="syllabus")
 router.register(r"lessons", views.LessonViewSet, basename="lesson")
 router.register(r"exercises", views.ExerciseViewSet, basename="exercise")
-router.register(r"progress", views.UserProgressViewSet, basename="progress")
-router.register(
-    r"learning-paths", views.UserLearningPathViewSet, basename="learningpath"
-)
+router.register(r"lesson_progress", views.UserLessonProgressViewSet, basename="user-progress")
+router.register(r"exercise_attempts", views.ExerciseAttemptViewSet, basename="exercise-attempt")
+router.register(r"cardtype", views.CardTypeViewSet, basename="progress")
 
 urlpatterns = [
     path("", include(router.urls)),

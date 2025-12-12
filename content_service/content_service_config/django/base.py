@@ -2,7 +2,6 @@ import os
 import sys
 import django_mongodb_backend
 from content_service_config.third_party.celery import *
-from content_service_config.third_party.simplejwt import *
 from content_service_config.third_party.spectacular import *
 from content_service_config.third_party.cache import *
 from content_service_config.env import BASE_DIR, env
@@ -12,32 +11,40 @@ sys.path.append("/app")
 
 env.read_env(os.path.join(BASE_DIR, ".env"))
 
-DJANGO_ENV = env("DJANGO_SETTINGS_MODULE", default="user_service_config.django.dev")
+SECRET_KEY = env("DJANGO_SECRET_KEY")
+SERVICE_INTERNAL_TOKEN = env("SERVICE_INTERNAL_TOKEN")
+
+DJANGO_ENV = env("DJANGO_SETTINGS_MODULE", default="content_service_config.django.dev")
 
 
 DEBUG = env.bool("DEBUG", default=True)
 
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
-
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
-
 ALLOWED_HOSTS = ["*"]
-
-
-# Switching JWT_KEY and SECRET_KEY based on the production environment
-if DJANGO_ENV == "content_service_config.django.dev":
-    JWT_KEY = env("DEV_JWT_KEY")
-    SECRET_KEY = env("DEV_SECRET_KEY")
-elif DJANGO_ENV == "content_service_config.django.stag":
-    JWT_KEY = env("STAG_JWT_KEY")
-    SECRET_KEY = env("STAG_SECRET_KEY")
-else:
-    JWT_KEY = env("PROD_JWT_KEY")
-    SECRET_KEY = env("PROD_SECRET_KEY")
-
-JWT_ALGORITHM = env("JWT_ALGORITHM")
-
 USER_SERVICE_URL = env("USER_SERVICE_URL")
+
+
+# Switching between development and production environments secrets
+if DJANGO_ENV == "user_service_config.django.dev":
+    CLERK_PUBLISHABLE_KEY = env("CLERK_PUBLISHABLE_KEY")
+    CLERK_WEBHOOK_SECRET = env("CLERK_WEBHOOK_SECRET")
+    CLERK_FRONTEND_API_URL = env(
+        "CLERK_FRONTEND_API_URL", default="https://api.clerk.com"
+    )
+    CLERK_API_URL = env("CLERK_API_URL", default="https://api.clerk.com")
+    CLERK_AUDIENCE = env.list("CLERK_AUDIENCE", default=[])
+    CLERK_SECRET_KEY = env("CLERK_SECRET_KEY")
+else:
+    CLERK_PUBLISHABLE_KEY = env("CLERK_PUBLISHABLE_KEY")
+    CLERK_WEBHOOK_SECRET = env("CLERK_WEBHOOK_SECRET")
+    CLERK_FRONTEND_API_URL = env(
+        "CLERK_FRONTEND_API_URL", default="https://api.clerk.com"
+    )
+    CLERK_API_URL = env("CLERK_API_URL", default="https://api.clerk.com")
+    CLERK_AUDIENCE = env.list("CLERK_AUDIENCE", default=[])
+    CLERK_SECRET_KEY = env("CLERK_SECRET_KEY")
+
 
 # Media files
 MEDIA_URL = "/media/"
@@ -73,16 +80,25 @@ MIDDLEWARE = [
 ROOT_URLCONF = "content_service_config.urls"
 
 # Rest Framework Settings
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+]
+
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "content.authentication.JWTAuthentication",
-    ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.permissions.IsAuthenticated",
     ],
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 20,
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "content.auth.ClerkAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    }
 }
 
 TEMPLATES = [
@@ -111,10 +127,6 @@ WSGI_APPLICATION = "content_service_config.wsgi.application"
 if DJANGO_ENV == "user_service_config.django.dev":
     DATABASES = {
         "default": django_mongodb_backend.parse_uri(env("DEV_CONNECTION_STRING"))
-    }
-elif DJANGO_ENV == "user_service_config.django.stag":
-    DATABASES = {
-        "default": django_mongodb_backend.parse_uri(env("STAG_CONNECTION_STRING"))
     }
 else:
     DATABASES = {

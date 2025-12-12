@@ -12,7 +12,7 @@ class UserAdminCreationForm(forms.ModelForm):
     class Meta:
         model = User
         fields = (
-            "id",
+            "user_id",
             "email",
             "first_name",
             "last_name",
@@ -39,7 +39,7 @@ class UserAdminChangeForm(forms.ModelForm):
     class Meta:
         model = User
         fields = (
-            "id",
+            "user_id",
             "email",
             "first_name",
             "last_name",

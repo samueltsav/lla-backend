@@ -7,17 +7,17 @@ from django.contrib.auth.base_user import BaseUserManager
 class UserManager(BaseUserManager):
     use_in_migrations = True
 
-    def create_user(self, id=None, email=None, password=None, **extra_fields):
+    def create_user(self, user_id=None, email=None, password=None, **extra_fields):
         if not email:
             raise ValueError("Users must have an email address")
 
         email = self.normalize_email(email)
 
-        if id is None:
+        if user_id is None:
             # For local Django users (including superuser)
-            id = str(uuid.uuid4())
+            user_id = str(uuid.uuid4())
 
-        user = self.model(id=id, email=email, **extra_fields)
+        user = self.model(user_id=user_id, email=email, **extra_fields)
 
         if password:
             user.set_password(password)
@@ -41,7 +41,7 @@ class UserManager(BaseUserManager):
             raise ValueError("Superuser must have is_superuser=True")
 
         return self.create_user(
-            id=None,  # generates UUID for superuser
+            user_id=None,  # generates UUID for superuser
             email=email,
             password=password,
             **extra_fields,
@@ -49,7 +49,7 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-    id = models.CharField(primary_key=True, unique=True, max_length=255)
+    user_id = models.CharField(primary_key=True, unique=True, max_length=255)
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)

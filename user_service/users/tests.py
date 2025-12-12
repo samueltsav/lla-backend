@@ -1,10 +1,14 @@
 from django.test import TestCase, Client
 from django.urls import reverse
-from django.conf import settings
-from .models import User
+from user_service_config.django import base
 import json
-
 from django.core.mail import send_mail
+from django.contrib.auth import get_user_model
+from svix.webhooks import Webhook
+import time
+
+
+User = get_user_model()
 
 # Azure Commuication Services email test
 send_mail(
@@ -15,39 +19,45 @@ send_mail(
 )
 
 
-# Basic tests
+# Clerk Webhook tests
 class ClerkWebhookTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.url = reverse("clerk-webhook")
-        settings.CLERK_WEBHOOK_SECRET = "testsecret"
+        base.CLERK_WEBHOOK_SECRET = "testsecret"   # Svix expects raw secret
 
-    def sign(self, payload_bytes):
-        import hmac
-        import hashlib
-
-        return hmac.new(
-            settings.CLERK_WEBHOOK_SECRET.encode(), payload_bytes, hashlib.sha256
-        ).hexdigest()
+        # Create Svix webhook instance
+        self.wh = Webhook(base.CLERK_WEBHOOK_SECRET)
 
     def test_create_user(self):
-        payload = json.dumps(
-            {
-                "type": "user.created",
-                "data": {
-                    "id": "u_123",
-                    "email_addresses": [{"email_address": "test@example.com"}],
-                    "first_name": "T",
-                    "last_name": "S",
-                },
-            }
-        ).encode()
-        sig = self.sign(payload)
+        payload_dict = {
+            "type": "user.created",
+            "data": {
+                "user_id": "u_123",
+                "email_addresses": [{"email_address": "test@example.com"}],
+                "first_name": "Samuel",
+                "last_name": "Tsav",
+            },
+        }
+
+        payload = json.dumps(payload_dict)
+
+        # Svix automatically generates proper signature headers
+        headers = self.wh.sign(payload)
+
+        # Django test client needs headers formatted as HTTP_*
+        client_headers = {
+            "HTTP_SVIX_ID": headers["svix-id"],
+            "HTTP_SVIX_TIMESTAMP": headers["svix-timestamp"],
+            "HTTP_SVIX_SIGNATURE": headers["svix-signature"],
+        }
+
         response = self.client.post(
             self.url,
             data=payload,
             content_type="application/json",
-            **{"HTTP_CLERK_SIGNATURE": sig},
+            **client_headers,
         )
+
         self.assertEqual(response.status_code, 200)
         self.assertTrue(User.objects.filter(id="u_123").exists())

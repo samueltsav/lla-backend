@@ -1,6 +1,6 @@
 services:
   rabbitmq:
-    image: rabbitmq:4.1.4-management
+    image: rabbitmq:4.2.1-management-alpine
     container_name: rabbitmq
     restart: unless-stopped
     ports:
@@ -15,7 +15,7 @@ services:
       - backend_network
 
   redis:
-    image: redis:7.4.4-alpine
+    image: redis:8.4-alpine
     container_name: redis
     ports:
       - "6379:6379"
